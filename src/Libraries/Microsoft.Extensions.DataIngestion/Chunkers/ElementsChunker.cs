@@ -36,6 +36,7 @@ internal sealed class ElementsChunker
     {
         // Not using yield return here as we use ref structs.
         List<IngestionChunk<string>> chunks = [];
+        Dictionary<string, object>? accumulatedMetadata = null;
 
         int contextTokenCount = CountTokens(context.AsSpan());
         int totalTokenCount = contextTokenCount;
@@ -66,6 +67,8 @@ internal sealed class ElementsChunker
             {
                 continue; // An image can come with Markdown, but no AlternativeText or Text.
             }
+
+            AccumulateMetadata(element, ref accumulatedMetadata);
 
             int elementTokenCount = CountTokens(semanticContent.AsSpan());
             if (elementTokenCount + totalTokenCount <= _maxTokensPerChunk)
@@ -196,7 +199,9 @@ internal sealed class ElementsChunker
 
         if (totalTokenCount > contextTokenCount)
         {
-            chunks.Add(new(_currentChunk.ToString(), document, context));
+            var chunk = new IngestionChunk<string>(_currentChunk.ToString(), document, context);
+            ApplyMetadata(chunk, accumulatedMetadata);
+            chunks.Add(chunk);
         }
 
         _currentChunk.Clear();
@@ -205,7 +210,10 @@ internal sealed class ElementsChunker
 
         void Commit()
         {
-            chunks.Add(new(_currentChunk.ToString(), document, context));
+            var chunk = new IngestionChunk<string>(_currentChunk.ToString(), document, context);
+            ApplyMetadata(chunk, accumulatedMetadata);
+            chunks.Add(chunk);
+            accumulatedMetadata = null;
 
             // We keep the context in the current chunk as it's the same for all elements.
             _currentChunk.Remove(
@@ -266,6 +274,43 @@ internal sealed class ElementsChunker
 
         vsb.Append('|');
         vsb.Append(Environment.NewLine);
+    }
+
+    private static void AccumulateMetadata(IngestionDocumentElement element, ref Dictionary<string, object>? accumulated)
+    {
+        if (!element.HasMetadata)
+        {
+            return;
+        }
+
+        accumulated ??= [];
+        foreach (var kvp in element.Metadata)
+        {
+            if (kvp.Value is not null)
+            {
+#if NET
+                accumulated.TryAdd(kvp.Key, kvp.Value);
+#else
+                if (!accumulated.ContainsKey(kvp.Key))
+                {
+                    accumulated[kvp.Key] = kvp.Value;
+                }
+#endif
+            }
+        }
+    }
+
+    private static void ApplyMetadata(IngestionChunk<string> chunk, Dictionary<string, object>? accumulated)
+    {
+        if (accumulated is null or { Count: 0 })
+        {
+            return;
+        }
+
+        foreach (var kvp in accumulated)
+        {
+            chunk.Metadata[kvp.Key] = kvp.Value;
+        }
     }
 
     private int CountTokens(ReadOnlySpan<char> input)

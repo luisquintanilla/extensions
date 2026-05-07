@@ -46,6 +46,7 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
 
             int stringBuilderTokenCount = 0;
             StringBuilder stringBuilder = new();
+            Dictionary<string, object>? accumulatedMetadata = null;
             foreach (IngestionDocumentElement element in document.EnumerateContent())
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -54,6 +55,8 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                 {
                     continue;
                 }
+
+                AccumulateMetadata(element, ref accumulatedMetadata);
 
                 int contentToProcessTokenCount = _tokenizer.CountTokens(elementContent!, considerNormalization: false);
                 ReadOnlyMemory<char> contentToProcess = elementContent.AsMemory();
@@ -73,7 +76,7 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                             _ = stringBuilder.Append(ptr, index);
                         }
                     }
-                    yield return FinalizeChunk();
+                    yield return FinalizeChunk(ref accumulatedMetadata);
 
                     contentToProcess = contentToProcess.Slice(index);
                     contentToProcessTokenCount = _tokenizer.CountTokens(contentToProcess.Span, considerNormalization: false);
@@ -85,16 +88,27 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
 
             if (stringBuilder.Length > 0)
             {
-                yield return FinalizeChunk();
+                yield return FinalizeChunk(ref accumulatedMetadata);
             }
             yield break;
 
-            IngestionChunk<string> FinalizeChunk()
+            IngestionChunk<string> FinalizeChunk(ref Dictionary<string, object>? metadata)
             {
                 IngestionChunk<string> chunk = new IngestionChunk<string>(
                     content: stringBuilder.ToString(),
                     document: document,
                     context: string.Empty);
+
+                if (metadata is { Count: > 0 })
+                {
+                    foreach (var kvp in metadata)
+                    {
+                        chunk.Metadata[kvp.Key] = kvp.Value;
+                    }
+
+                    metadata = null;
+                }
+
                 _ = stringBuilder.Clear();
                 stringBuilderTokenCount = 0;
 
@@ -118,6 +132,30 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                 }
 
                 return chunk;
+            }
+        }
+
+        private static void AccumulateMetadata(IngestionDocumentElement element, ref Dictionary<string, object>? accumulated)
+        {
+            if (!element.HasMetadata)
+            {
+                return;
+            }
+
+            accumulated ??= [];
+            foreach (var kvp in element.Metadata)
+            {
+                if (kvp.Value is not null)
+                {
+#if NET
+                    accumulated.TryAdd(kvp.Key, kvp.Value);
+#else
+                    if (!accumulated.ContainsKey(kvp.Key))
+                    {
+                        accumulated[kvp.Key] = kvp.Value;
+                    }
+#endif
+                }
             }
         }
 
