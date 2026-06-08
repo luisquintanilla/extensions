@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.AI;
 using Microsoft.ML.Tokenizers;
 using Xunit;
 
@@ -521,5 +522,78 @@ public class ChunkerMetadataPropagationTests
         {
             Assert.False(chunks[i].HasMetadata, $"Chunk {i} should not have metadata");
         }
+    }
+
+    [Fact]
+    public async Task SemanticSimilarityChunker_SingleElementWithMetadata_PropagatesMetadata()
+    {
+        var paragraph = new IngestionDocumentParagraph("This is a paragraph for semantic chunking.");
+        paragraph.Metadata["element_type"] = "text";
+        paragraph.Metadata["page"] = 1;
+
+        var doc = new IngestionDocument("doc");
+        doc.Sections.Add(new IngestionDocumentSection { Elements = { paragraph } });
+
+        var tokenizer = TiktokenTokenizer.CreateForModel("gpt-4o");
+        using var embeddingGenerator = new TestEmbeddingGenerator()
+        {
+            GenerateAsyncCallback = static (values, options, ct) =>
+            {
+                var embeddings = values.Select(v =>
+                    new Embedding<float>(new float[] { 1.0f, 2.0f, 3.0f, 4.0f }))
+                    .ToArray();
+                return Task.FromResult(new GeneratedEmbeddings<Embedding<float>>(embeddings));
+            }
+        };
+        var chunker = new SemanticSimilarityChunker(
+            embeddingGenerator,
+            new(tokenizer) { MaxTokensPerChunk = 2_000, OverlapTokens = 0 });
+
+        var chunks = await chunker.ProcessAsync(doc).ToListAsync();
+
+        var chunk = Assert.Single(chunks);
+        Assert.True(chunk.HasMetadata);
+        Assert.Equal("text", chunk.Metadata["element_type"]);
+        Assert.Equal(1, chunk.Metadata["page"]);
+    }
+
+    [Fact]
+    public async Task SemanticSimilarityChunker_MultipleElementsDifferentKeys_AllKeysAppear()
+    {
+        var para1 = new IngestionDocumentParagraph("First paragraph about .NET development.");
+        para1.Metadata["element_type"] = "text";
+
+        var para2 = new IngestionDocumentParagraph("Second paragraph about cloud computing.");
+        para2.Metadata["confidence"] = 0.95;
+
+        var doc = new IngestionDocument("doc");
+        doc.Sections.Add(new IngestionDocumentSection { Elements = { para1, para2 } });
+
+        var tokenizer = TiktokenTokenizer.CreateForModel("gpt-4o");
+        using var embeddingGenerator = new TestEmbeddingGenerator()
+        {
+            GenerateAsyncCallback = static (values, options, ct) =>
+            {
+                var embeddings = values.Select(v =>
+                    new Embedding<float>(new float[] { 1.0f, 2.0f, 3.0f, 4.0f }))
+                    .ToArray();
+                return Task.FromResult(new GeneratedEmbeddings<Embedding<float>>(embeddings));
+            }
+        };
+        var chunker = new SemanticSimilarityChunker(
+            embeddingGenerator,
+            new(tokenizer) { MaxTokensPerChunk = 2_000, OverlapTokens = 0 });
+
+        var chunks = await chunker.ProcessAsync(doc).ToListAsync();
+
+        // Semantic chunker may split elements into separate chunks based on similarity.
+        // Verify each chunk carries its originating element's metadata.
+        Assert.Equal(2, chunks.Count);
+
+        Assert.True(chunks[0].HasMetadata);
+        Assert.Equal("text", chunks[0].Metadata["element_type"]);
+
+        Assert.True(chunks[1].HasMetadata);
+        Assert.Equal(0.95, chunks[1].Metadata["confidence"]);
     }
 }
