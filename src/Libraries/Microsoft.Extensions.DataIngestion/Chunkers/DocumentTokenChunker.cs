@@ -56,10 +56,9 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                     continue;
                 }
 
-                AccumulateMetadata(element, ref accumulatedMetadata);
-
                 int contentToProcessTokenCount = _tokenizer.CountTokens(elementContent!, considerNormalization: false);
                 ReadOnlyMemory<char> contentToProcess = elementContent.AsMemory();
+                bool elementMetadataAccumulated = false;
                 while (stringBuilderTokenCount + contentToProcessTokenCount >= _maxTokensPerChunk)
                 {
                     int index = _tokenizer.GetIndexByTokenCount(
@@ -68,6 +67,13 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                         out string? _,
                         out int _,
                         considerNormalization: false);
+
+                    // Accumulate metadata the first time this element contributes content.
+                    if (!elementMetadataAccumulated && index > 0)
+                    {
+                        AccumulateMetadata(element, ref accumulatedMetadata);
+                        elementMetadataAccumulated = true;
+                    }
 
                     unsafe
                     {
@@ -80,6 +86,12 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
 
                     contentToProcess = contentToProcess.Slice(index);
                     contentToProcessTokenCount = _tokenizer.CountTokens(contentToProcess.Span, considerNormalization: false);
+                }
+
+                // Accumulate metadata if the element only contributed content after the loop.
+                if (!elementMetadataAccumulated)
+                {
+                    AccumulateMetadata(element, ref accumulatedMetadata);
                 }
 
                 _ = stringBuilder.Append(contentToProcess);

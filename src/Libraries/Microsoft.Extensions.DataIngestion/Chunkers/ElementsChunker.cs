@@ -68,17 +68,18 @@ internal sealed class ElementsChunker
                 continue; // An image can come with Markdown, but no AlternativeText or Text.
             }
 
-            AccumulateMetadata(element, ref accumulatedMetadata);
-
             int elementTokenCount = CountTokens(semanticContent.AsSpan());
             if (elementTokenCount + totalTokenCount <= _maxTokensPerChunk)
             {
+                // Element fits in the current chunk — accumulate its metadata here.
+                AccumulateMetadata(element, ref accumulatedMetadata);
                 totalTokenCount += elementTokenCount;
                 AppendNewLineAndSpan(_currentChunk, semanticContent.AsSpan());
             }
             else if (element is IngestionDocumentTable table)
             {
                 ValueStringBuilder tableBuilder = new(initialCapacity: 8000);
+                bool tableMetadataAccumulated = false;
 
                 try
                 {
@@ -116,6 +117,13 @@ internal sealed class ElementsChunker
                             // We append the table as long as it's not just the header.
                             if (rowIndex != 1)
                             {
+                                // Accumulate metadata before first table content append.
+                                if (!tableMetadataAccumulated)
+                                {
+                                    AccumulateMetadata(element, ref accumulatedMetadata);
+                                    tableMetadataAccumulated = true;
+                                }
+
                                 AppendNewLineAndSpan(_currentChunk, tableBuilder.AsSpan(0, tableLength - Environment.NewLine.Length));
                             }
 
@@ -140,6 +148,12 @@ internal sealed class ElementsChunker
                         totalTokenCount += lastRowTokens;
                     }
 
+                    // Accumulate metadata before appending remaining table content.
+                    if (!tableMetadataAccumulated)
+                    {
+                        AccumulateMetadata(element, ref accumulatedMetadata);
+                    }
+
                     AppendNewLineAndSpan(_currentChunk, tableBuilder.AsSpan(0, tableLength - Environment.NewLine.Length));
                 }
                 finally
@@ -150,6 +164,7 @@ internal sealed class ElementsChunker
             else
             {
                 ReadOnlySpan<char> remainingContent = semanticContent.AsSpan();
+                bool elementMetadataAccumulated = false;
 
                 while (!remainingContent.IsEmpty)
                 {
@@ -171,6 +186,13 @@ internal sealed class ElementsChunker
                         {
                             index = newLineIndex + 1; // We want to include the new line character (works for "\r\n" as well).
                             tokenCount = CountTokens(remainingContent.Slice(0, index));
+                        }
+
+                        // Accumulate metadata the first time this element contributes content.
+                        if (!elementMetadataAccumulated)
+                        {
+                            AccumulateMetadata(element, ref accumulatedMetadata);
+                            elementMetadataAccumulated = true;
                         }
 
                         totalTokenCount += tokenCount;

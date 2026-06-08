@@ -312,4 +312,214 @@ public class ChunkerMetadataPropagationTests
         Assert.True(chunk.HasMetadata);
         Assert.Equal("table", chunk.Metadata["element_type"]);
     }
+
+    [Fact]
+    public async Task SectionChunker_PreviousElementFillsChunk_NextElementMetadataOnNewChunk()
+    {
+        // First element exceeds the chunk limit, so it fills chunk 0 and overflows into chunk 1.
+        // Second element is small and goes into the last chunk.
+        // Each element has a unique metadata key — verify they end up on the correct chunks.
+        string fillerText = string.Join(" ", Enumerable.Repeat("word", 600));
+        var filler = new IngestionDocumentParagraph(fillerText);
+        filler.Metadata["filler_key"] = "from_filler";
+
+        var nextElement = new IngestionDocumentParagraph("Next element content here.");
+        nextElement.Metadata["next_key"] = "from_next";
+
+        var doc = new IngestionDocument("doc");
+        doc.Sections.Add(new IngestionDocumentSection { Elements = { filler, nextElement } });
+
+        var chunker = CreateSectionChunker(maxTokensPerChunk: 200);
+        var chunks = await chunker.ProcessAsync(doc).ToListAsync();
+
+        Assert.True(chunks.Count >= 2);
+
+        // First chunk must have filler metadata (it contributed content to this chunk)
+        Assert.True(chunks[0].HasMetadata);
+        Assert.Equal("from_filler", chunks[0].Metadata["filler_key"]);
+        Assert.False(chunks[0].Metadata.ContainsKey("next_key"));
+
+        // The last chunk must have the next element's metadata
+        var lastChunk = chunks[chunks.Count - 1];
+        Assert.True(lastChunk.HasMetadata);
+        Assert.Equal("from_next", lastChunk.Metadata["next_key"]);
+    }
+
+    [Fact]
+    public async Task SectionChunker_NonTableElementTooLargeForCurrentChunk_MetadataOnCorrectChunks()
+    {
+        // Two large elements with the same metadata key but different values.
+        // Each element exceeds chunk limit. Verify first-wins semantics per chunk:
+        // - Chunks containing elem1 content get elem1's metadata (only the first such chunk)
+        // - Chunks containing elem2 content get elem2's metadata (only the first such chunk)
+        var elem1 = new IngestionDocumentParagraph(string.Join(" ", Enumerable.Repeat("alpha", 300)));
+        elem1.Metadata["source"] = "elem1";
+
+        var elem2 = new IngestionDocumentParagraph(string.Join(" ", Enumerable.Repeat("beta", 300)));
+        elem2.Metadata["source"] = "elem2";
+
+        var doc = new IngestionDocument("doc");
+        doc.Sections.Add(new IngestionDocumentSection { Elements = { elem1, elem2 } });
+
+        var chunker = CreateSectionChunker(maxTokensPerChunk: 200);
+        var chunks = await chunker.ProcessAsync(doc).ToListAsync();
+
+        Assert.True(chunks.Count >= 3);
+
+        // First chunk: elem1's metadata (elem1 contributes content)
+        Assert.Equal("elem1", chunks[0].Metadata["source"]);
+
+        // Find the first chunk that contains elem2's content
+        var firstElem2Chunk = chunks.First(c => c.Content.Contains("beta"));
+        Assert.True(firstElem2Chunk.HasMetadata);
+        Assert.Equal("elem2", firstElem2Chunk.Metadata["source"]);
+    }
+
+    [Fact]
+    public async Task SectionChunker_TablePreCommit_TableMetadataNotOnPreviousChunk()
+    {
+        // Previous content fills most of the chunk. Table header doesn't fit, forcing a pre-commit.
+        // Table metadata must go on the chunk with the table, not the pre-committed chunk.
+        // Use different metadata keys to distinguish elements.
+        var filler = new IngestionDocumentParagraph(string.Join(" ", Enumerable.Repeat("fill", 500)));
+        filler.Metadata["paragraph_key"] = "paragraph_value";
+
+        var cells = new IngestionDocumentElement?[2, 2]
+        {
+            { new IngestionDocumentParagraph("Col1"), new IngestionDocumentParagraph("Col2") },
+            { new IngestionDocumentParagraph("Val1"), new IngestionDocumentParagraph("Val2") }
+        };
+        var table = new IngestionDocumentTable("| Col1 | Col2 |\n| --- | --- |\n| Val1 | Val2 |", cells);
+        table.Metadata["table_key"] = "table_value";
+
+        var doc = new IngestionDocument("doc");
+        doc.Sections.Add(new IngestionDocumentSection { Elements = { filler, table } });
+
+        var chunker = CreateSectionChunker(maxTokensPerChunk: 200);
+        var chunks = await chunker.ProcessAsync(doc).ToListAsync();
+
+        Assert.True(chunks.Count >= 2);
+
+        // Find the chunk containing table content
+        var tableChunk = chunks.FirstOrDefault(c => c.Content.Contains("Col1") || c.Content.Contains("Val1"));
+        Assert.NotNull(tableChunk);
+
+        // The table chunk must have the table's metadata
+        Assert.True(tableChunk!.HasMetadata);
+        Assert.Equal("table_value", tableChunk.Metadata["table_key"]);
+
+        // Chunks before the table chunk should NOT have table metadata
+        int tableChunkIndex = chunks.IndexOf(tableChunk);
+        for (int i = 0; i < tableChunkIndex; i++)
+        {
+            Assert.False(chunks[i].Metadata.ContainsKey("table_key"),
+                $"Chunk {i} should not have table metadata");
+        }
+    }
+
+    [Fact]
+    public async Task DocumentTokenChunker_PreviousElementFillsChunk_NextElementMetadataOnNewChunk()
+    {
+        // First element exceeds chunk limit, second element is small.
+        // Each has unique keys — verify correct chunk association.
+        string fillerText = string.Join(" ", Enumerable.Repeat("word", 600));
+        var filler = new IngestionDocumentParagraph(fillerText);
+        filler.Metadata["filler_key"] = "from_filler";
+
+        var nextElement = new IngestionDocumentParagraph("Next element with metadata.");
+        nextElement.Metadata["next_key"] = "from_next";
+
+        var doc = new IngestionDocument("doc");
+        doc.Sections.Add(new IngestionDocumentSection { Elements = { filler, nextElement } });
+
+        var chunker = CreateDocumentTokenChunker(maxTokensPerChunk: 200);
+        var chunks = await chunker.ProcessAsync(doc).ToListAsync();
+
+        Assert.True(chunks.Count >= 2);
+
+        // First chunk must have filler metadata
+        Assert.True(chunks[0].HasMetadata);
+        Assert.Equal("from_filler", chunks[0].Metadata["filler_key"]);
+        Assert.False(chunks[0].Metadata.ContainsKey("next_key"));
+
+        // The last chunk must have the next element's metadata
+        var lastChunk = chunks[chunks.Count - 1];
+        Assert.True(lastChunk.HasMetadata);
+        Assert.Equal("from_next", lastChunk.Metadata["next_key"]);
+    }
+
+    [Fact]
+    public async Task DocumentTokenChunker_WithOverlap_PropagatesMetadata()
+    {
+        var tokenizer = TiktokenTokenizer.CreateForModel("gpt-4o");
+        var chunker = new DocumentTokenChunker(new(tokenizer) { MaxTokensPerChunk = 200, OverlapTokens = 50 });
+
+        string text1 = string.Join(" ", Enumerable.Repeat("alpha", 300));
+        var para1 = new IngestionDocumentParagraph(text1);
+        para1.Metadata["section"] = "intro";
+
+        string text2 = string.Join(" ", Enumerable.Repeat("beta", 100));
+        var para2 = new IngestionDocumentParagraph(text2);
+        para2.Metadata["section"] = "body";
+
+        var doc = new IngestionDocument("doc");
+        doc.Sections.Add(new IngestionDocumentSection { Elements = { para1, para2 } });
+
+        var chunks = await chunker.ProcessAsync(doc).ToListAsync();
+
+        Assert.True(chunks.Count >= 2);
+
+        // First chunk should have intro metadata
+        Assert.True(chunks[0].HasMetadata);
+        Assert.Equal("intro", chunks[0].Metadata["section"]);
+    }
+
+    [Fact]
+    public async Task SectionChunker_TableSplitAcrossChunks_FirstChunkGetsMetadata()
+    {
+        // A large table that spans multiple chunks — only the first chunk containing table content gets metadata
+        int rowCount = 30;
+        int colCount = 3;
+        var cells = new IngestionDocumentElement?[rowCount, colCount];
+        cells[0, 0] = new IngestionDocumentParagraph("HeaderColumn1");
+        cells[0, 1] = new IngestionDocumentParagraph("HeaderColumn2");
+        cells[0, 2] = new IngestionDocumentParagraph("HeaderColumn3");
+
+        // Build a proper markdown string that's long enough to exceed the token limit
+        var mdBuilder = new System.Text.StringBuilder();
+        mdBuilder.AppendLine("| HeaderColumn1 | HeaderColumn2 | HeaderColumn3 |");
+        mdBuilder.AppendLine("| --- | --- | --- |");
+
+        for (int i = 1; i < rowCount; i++)
+        {
+            string c1 = $"Row{i} first column value with extra text to increase token count";
+            string c2 = $"Row{i} second column value with extra text to increase token count";
+            string c3 = $"Row{i} third column value with extra text to increase token count";
+            cells[i, 0] = new IngestionDocumentParagraph(c1);
+            cells[i, 1] = new IngestionDocumentParagraph(c2);
+            cells[i, 2] = new IngestionDocumentParagraph(c3);
+            mdBuilder.AppendLine($"| {c1} | {c2} | {c3} |");
+        }
+
+        var table = new IngestionDocumentTable(mdBuilder.ToString(), cells);
+        table.Metadata["element_type"] = "data_table";
+
+        var doc = new IngestionDocument("doc");
+        doc.Sections.Add(new IngestionDocumentSection { Elements = { table } });
+
+        var chunker = CreateSectionChunker(maxTokensPerChunk: 200);
+        var chunks = await chunker.ProcessAsync(doc).ToListAsync();
+
+        Assert.True(chunks.Count > 1, $"Table should span multiple chunks but got {chunks.Count}");
+
+        // First chunk gets table metadata
+        Assert.True(chunks[0].HasMetadata);
+        Assert.Equal("data_table", chunks[0].Metadata["element_type"]);
+
+        // Subsequent table chunks do NOT get metadata (cleared on commit, first-wins)
+        for (int i = 1; i < chunks.Count; i++)
+        {
+            Assert.False(chunks[i].HasMetadata, $"Chunk {i} should not have metadata");
+        }
+    }
 }
