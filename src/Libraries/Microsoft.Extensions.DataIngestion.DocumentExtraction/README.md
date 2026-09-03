@@ -34,8 +34,8 @@ parsed, copied into a literal text node, or used when canonical elements are pre
 
 ```text
 Microsoft.Extensions.DataIngestion.DocumentExtraction
-  -> Microsoft.Extensions.DataIngestion.Abstractions
-  -> Microsoft.Extensions.DocumentExtraction.Abstractions
+  +---> Microsoft.Extensions.DataIngestion.Abstractions
+  +---> Microsoft.Extensions.DocumentExtraction.Abstractions
 ```
 
 Neither core model depends on the other. The adapter is an explicit transformation boundary, not a
@@ -51,7 +51,10 @@ shared-model solution.
 | Code block | Typed `IngestionDocumentCodeBlock` |
 | Paragraph or provider-specific block kind | Literal `IngestionDocumentParagraph`; an unknown kind value is intentionally dropped |
 | Empty text block | Omitted because MEDI text elements require non-empty content; if every element is omitted, any page Markdown still goes through the configured Markdown-only policy |
-| Structured table | Typed table cells retain indexes, spans, roles, and recursively mapped nested content |
+| Structured table | Typed table cells retain indexes, spans, roles, and snapshot recursively mapped nested content |
+| Nested table in a cell | Retained as a structured nested table and rendered as nested HTML by built-in string chunking |
+| Captioned image in a multi-element cell | Bytes, media type, and caption remain in the nested cell model; the caption contributes to built-in string chunking |
+| Nested image binary chunking | Stock document enumeration does not traverse table-cell content, so nested image bytes are not emitted by the built-in top-level binary traversal; a recursive binary chunker is required |
 | Table with only `MarkdownRepresentation` | Preserved through the existing explicit Markdown table path |
 | Image bytes and optional media type/caption | BCL bytes, media type, and alternative text are copied without creating placeholder Markdown |
 | Caption-only image | Preserved as a text-described image |
@@ -65,27 +68,32 @@ shared-model solution.
 
 ## Comparison evidence
 
-This implementation is the minimal-change fallback evaluated against the separate neutral-tree
-alternative, not an automatic architecture recommendation.
+This implementation is the explicit-bridge fallback evaluated against the same-base neutral-tree
+PR. The measurements describe change shape and compatibility impact; they are not quality scores.
 
-| Measure | Explicit bridge on current generic MEDI | Neutral semantic tree spike |
+| Measure | Explicit bridge PR #1 | Neutral shared-tree PR #2 |
 |---|---:|---:|
-| Changed production C# lines | +1,096 / -41 | 2,416 spike lines |
-| Changed test C# lines | +907 / -1 | Executable runner assertions |
-| New public types | 5 | 32 public types, replacing 10 MEDI content types |
-| Added public API entries | 33 | 32 public types |
-| New core dependency edge | None | Shared model required coordinated producer and MEDI adoption |
-| Consumer-owned mapper/chunker/writer stack | None | None |
+| Head measured | This branch's final reviewed head | `1d82e27402420dcc5f7a93f3dca47050aa6a62c0` |
+| Production C# delta | +1,148 / -51 | +1,375 / -1,339 |
+| Test C# delta | +1,007 / -1 | +696 / -2,068 |
+| Top-level public source type declarations | +5 / -0 | +15 / -14 |
+| Shared waist | None; explicit adapter between two models | 13 public types |
+| Core dependency shape | No dependency between the two core abstractions | Both domains consume the shared waist |
 | Existing authored Markdown constructors | Preserved | Replaced by the shared hierarchy |
-| Generic chunk/writer direction | Preserved | Preview 2 `AIContent`-shaped evidence was not ported |
+| Generic chunk/writer direction | Preserved | Preserved through the shared hierarchy |
 
 Line counts are measured against common base `1fec8651d88b19ae855c39239e75645c548e5dde`
-and exclude project metadata, API baselines, and documentation.
+and include C# files only. Public declaration counts include top-level source types, excluding nested
+converter helpers. PR #2 values were refreshed from its current head, not copied from the earlier
+standalone spike.
 
 The corpus covers literal text versus Markdown, headings, collision-safe code fences, nested and
 spanned tables, cell roles, captioned and captionless images, empty and partial element collections,
 Markdown-only policy, multiple pages, chunk provenance, text writing, and a separate generic binary
-pipeline. Unsupported elements and contentless images fail with source-page context.
+pipeline. A nested table and captioned binary image in a multi-element cell are mapped end to end;
+string chunking preserves the nested table and image caption. A limitation test records that nested
+image bytes require a recursive binary chunker. Unsupported elements and contentless images fail
+with source-page context.
 
 ## Compatibility and unresolved contracts
 
@@ -99,5 +107,8 @@ pipeline. Unsupported elements and contentless images fail with source-page cont
   in the document but do not emit them; a binary `IngestionChunker<DataContent>` can feed the stock
   generic writer. A built-in mixed-modality contract remains unresolved and this comparison does not
   revive Preview 2's non-generic `AIContent` chunk model.
+- Top-level enumeration intentionally does not flatten structured table cells. Consequently, nested
+  image captions participate in the table's string projection, while nested image bytes require a
+  recursive binary chunker.
 - The portable page encoding preserves provenance but does not provide numeric range filtering.
 - A public mapper abstraction is deferred until a second mapping policy demonstrates the need.

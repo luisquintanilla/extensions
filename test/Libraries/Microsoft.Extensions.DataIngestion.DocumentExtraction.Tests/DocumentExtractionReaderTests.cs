@@ -64,9 +64,15 @@ public class DocumentExtractionReaderTests
             cell => cell.RowIndex == 0 && cell.ColumnIndex == 0);
         Assert.Equal(2, rowHeader.RowSpan);
         Assert.Equal("rowHeader", rowHeader.Kind);
-        Assert.Equal(2, rowHeader.Elements.Count);
+        Assert.Equal(4, rowHeader.Elements.Count);
         Assert.IsType<IngestionDocumentCodeBlock>(rowHeader.Elements[1]);
+        IngestionDocumentTable nestedTable = Assert.IsType<IngestionDocumentTable>(rowHeader.Elements[2]);
+        Assert.Equal("Nested value", nestedTable.StructuredCells![0].Elements[0].Text);
+        IngestionDocumentImage nestedImage = Assert.IsType<IngestionDocumentImage>(rowHeader.Elements[3]);
+        Assert.Equal(3, nestedImage.Content!.Value.Length);
+        Assert.Equal("Nested chart", nestedImage.AlternativeText);
         Assert.Contains("rowspan=\"2\"", table.GetMarkdown(), StringComparison.Ordinal);
+        Assert.Contains("<table>", nestedTable.GetMarkdown(), StringComparison.Ordinal);
 
         IngestionDocumentImage image = Assert.IsType<IngestionDocumentImage>(
             document.Sections[0].Elements[4]);

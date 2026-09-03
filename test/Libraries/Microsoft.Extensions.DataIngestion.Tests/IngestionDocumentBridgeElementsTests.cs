@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
 using Xunit;
 
 namespace Microsoft.Extensions.DataIngestion.Tests;
@@ -79,6 +80,30 @@ public class IngestionDocumentBridgeElementsTests
                 ]));
 
         Assert.Contains("overlaps", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StructuredTableSnapshotsCellAndNestedElementCollections()
+    {
+        IngestionDocumentParagraph original = IngestionDocumentParagraph.FromText("Original");
+        List<IngestionDocumentElement> nestedElements = [original];
+        IngestionDocumentTableCell originalCell = new(0, 0, nestedElements);
+        List<IngestionDocumentTableCell> cells = [originalCell];
+
+        IngestionDocumentTable table = new(1, 1, cells);
+        nestedElements[0] = IngestionDocumentParagraph.FromText("Replacement");
+        cells[0] = new(0, 0, [IngestionDocumentParagraph.FromText("Replacement")]);
+
+        Assert.Same(originalCell, Assert.Single(table.StructuredCells!));
+        Assert.Same(original, Assert.Single(table.StructuredCells![0].Elements));
+        Assert.Same(original, table.Cells[0, 0]);
+        IngestionDocumentElement?[,] returnedGrid = table.Cells;
+        returnedGrid[0, 0] = IngestionDocumentParagraph.FromText("Mutated grid");
+        Assert.Same(original, table.Cells[0, 0]);
+        Assert.Throws<NotSupportedException>(
+            () => ((IList<IngestionDocumentTableCell>)table.StructuredCells!)[0] = cells[0]);
+        Assert.Throws<NotSupportedException>(
+            () => ((IList<IngestionDocumentElement>)originalCell.Elements)[0] = nestedElements[0]);
     }
 
     [Fact]

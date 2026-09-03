@@ -59,6 +59,21 @@ internal static class DocumentExtractionBridgeFixture
                                     {
                                         Kind = DocumentBlockKind.Code,
                                     },
+                                    new DocumentTable(
+                                        1,
+                                        1,
+                                        [
+                                            new DocumentTableCell(
+                                                0,
+                                                0,
+                                                [new DocumentBlock("Nested value")]),
+                                        ]),
+                                    new DocumentImage
+                                    {
+                                        Content = new byte[] { 9, 8, 7 },
+                                        MediaType = "image/png",
+                                        Caption = "Nested chart",
+                                    },
                                 ])
                             {
                                 Kind = DocumentTableCellKind.RowHeader,

@@ -63,7 +63,10 @@ internal static class MarkdownProjection
     internal static string CreateTable(IngestionDocumentTable table)
     {
         StringBuilder builder = new();
-        int columnCount = table.Cells.GetLength(1);
+#pragma warning disable S3967 // The existing table API requires a rectangular array.
+        IngestionDocumentElement?[,] cellGrid = table.CellGrid;
+#pragma warning restore S3967
+        int columnCount = cellGrid.GetLength(1);
         HashSet<long> covered = [];
         Dictionary<long, IngestionDocumentTableCell> anchors = [];
         foreach (IngestionDocumentTableCell cell in table.StructuredCells ?? [])
@@ -79,10 +82,10 @@ internal static class MarkdownProjection
         }
 
         builder.AppendLine("<table>");
-        for (int row = 0; row < table.Cells.GetLength(0); row++)
+        for (int row = 0; row < cellGrid.GetLength(0); row++)
         {
             builder.AppendLine("  <tr>");
-            for (int column = 0; column < table.Cells.GetLength(1); column++)
+            for (int column = 0; column < cellGrid.GetLength(1); column++)
             {
                 long cellKey = GetCellKey(row, column, columnCount);
                 if (anchors.TryGetValue(cellKey, out IngestionDocumentTableCell? cell)
@@ -146,7 +149,17 @@ internal static class MarkdownProjection
             }
 
             IngestionDocumentElement element = elements[i];
-            builder.Append(EscapeHtml(element.Text ?? element.GetMarkdown()));
+            if (element is IngestionDocumentTable table)
+            {
+                builder.Append(table.GetMarkdown());
+            }
+            else
+            {
+                builder.Append(EscapeHtml(
+                    element is IngestionDocumentImage image
+                        ? image.AlternativeText ?? image.Text ?? string.Empty
+                        : element.Text ?? element.GetMarkdown()));
+            }
         }
     }
 

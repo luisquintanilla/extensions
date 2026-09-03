@@ -85,12 +85,15 @@ internal sealed class ElementsChunker
             else if (element is IngestionDocumentTable { StructuredCells: null } table)
             {
                 AddPageNumbers(table, currentPageNumbers);
+#pragma warning disable S3967 // The existing table API requires a rectangular array.
+                IngestionDocumentElement?[,] tableCells = table.Cells;
+#pragma warning restore S3967
                 ValueStringBuilder tableBuilder = new(initialCapacity: 8000);
 
                 try
                 {
-                    AddMarkdownTableRow(table, rowIndex: 0, ref tableBuilder);
-                    AddMarkdownTableSeparatorRow(columnCount: table.Cells.GetLength(1), ref tableBuilder);
+                    AddMarkdownTableRow(tableCells, rowIndex: 0, ref tableBuilder);
+                    AddMarkdownTableSeparatorRow(columnCount: tableCells.GetLength(1), ref tableBuilder);
 
                     int headerLength = tableBuilder.Length;
                     int headerTokenCount = CountTokens(tableBuilder.AsSpan());
@@ -111,10 +114,10 @@ internal sealed class ElementsChunker
                     totalTokenCount += headerTokenCount;
                     int tableLength = headerLength;
 
-                    int rowCount = table.Cells.GetLength(0);
+                    int rowCount = tableCells.GetLength(0);
                     for (int rowIndex = 1; rowIndex < rowCount; rowIndex++)
                     {
-                        AddMarkdownTableRow(table, rowIndex, ref tableBuilder);
+                        AddMarkdownTableRow(tableCells, rowIndex, ref tableBuilder);
 
                         int lastRowTokens = CountTokens(tableBuilder.AsSpan(tableLength));
 
@@ -142,7 +145,7 @@ internal sealed class ElementsChunker
                                 ThrowTokenCountExceeded();
                             }
 
-                            AddMarkdownTableRow(table, rowIndex, ref tableBuilder);
+                            AddMarkdownTableRow(tableCells, rowIndex, ref tableBuilder);
                         }
 
                         tableLength = tableBuilder.Length;
@@ -408,13 +411,18 @@ internal sealed class ElementsChunker
 #endif
     }
 
-    private static void AddMarkdownTableRow(IngestionDocumentTable table, int rowIndex, ref ValueStringBuilder vsb)
+#pragma warning disable CA1814 // The existing table API requires a rectangular array.
+#pragma warning disable S3967 // The existing table API requires a rectangular array.
+    private static void AddMarkdownTableRow(
+        IngestionDocumentElement?[,] cells,
+        int rowIndex,
+        ref ValueStringBuilder vsb)
     {
-        for (int columnIndex = 0; columnIndex < table.Cells.GetLength(1); columnIndex++)
+        for (int columnIndex = 0; columnIndex < cells.GetLength(1); columnIndex++)
         {
             vsb.Append('|');
             vsb.Append(' ');
-            string? cellContent = table.Cells[rowIndex, columnIndex] switch
+            string? cellContent = cells[rowIndex, columnIndex] switch
             {
                 null => null,
                 IngestionDocumentImage img => img.AlternativeText ?? img.Text,
@@ -427,6 +435,8 @@ internal sealed class ElementsChunker
         vsb.Append('|');
         vsb.Append(Environment.NewLine);
     }
+#pragma warning restore S3967
+#pragma warning restore CA1814
 
     private static void AddMarkdownTableSeparatorRow(int columnCount, ref ValueStringBuilder vsb)
     {

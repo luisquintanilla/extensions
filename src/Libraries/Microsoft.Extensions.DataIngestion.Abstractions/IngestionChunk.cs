@@ -80,7 +80,7 @@ public sealed class IngestionChunk<T>
                 "Page numbers must contain only positive one-based values.");
         }
 
-        PageNumbers = normalizedPageNumbers;
+        PageNumbers = Array.AsReadOnly(normalizedPageNumbers);
     }
 
     /// <summary>

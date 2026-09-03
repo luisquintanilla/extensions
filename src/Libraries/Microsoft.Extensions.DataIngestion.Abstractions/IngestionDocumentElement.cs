@@ -246,15 +246,17 @@ public sealed class IngestionDocumentTableCell
         RowSpan = Throw.IfLessThan(rowSpan, 1);
         ColumnSpan = Throw.IfLessThan(columnSpan, 1);
         Kind = kind;
-        Elements = Throw.IfNull(elements).ToArray();
+        IngestionDocumentElement[] elementSnapshot = Throw.IfNull(elements).ToArray();
 
-        for (int i = 0; i < Elements.Count; i++)
+        for (int i = 0; i < elementSnapshot.Length; i++)
         {
-            if (Elements[i] is null)
+            if (elementSnapshot[i] is null)
             {
                 Throw.ArgumentException(nameof(elements), "Cell elements must not contain null values.");
             }
         }
+
+        Elements = Array.AsReadOnly(elementSnapshot);
     }
 
     /// <summary>Gets the zero-based row index.</summary>
@@ -281,6 +283,14 @@ public sealed class IngestionDocumentTableCell
 /// </summary>
 public sealed class IngestionDocumentTable : IngestionDocumentElement
 {
+#pragma warning disable CA1814 // The existing table API requires a rectangular array.
+#pragma warning disable S3967 // The existing table API requires a rectangular array.
+#pragma warning disable IDE0032 // A field is required so structured callers receive defensive snapshots.
+    private readonly IngestionDocumentElement?[,] _cells;
+#pragma warning restore IDE0032
+#pragma warning restore S3967
+#pragma warning restore CA1814
+
     /// <summary>
     /// Initializes a new instance of the <see cref="IngestionDocumentTable"/> class.
     /// </summary>
@@ -292,7 +302,7 @@ public sealed class IngestionDocumentTable : IngestionDocumentElement
     public IngestionDocumentTable(string markdown, IngestionDocumentElement?[,] cells)
         : base(markdown)
     {
-        Cells = Throw.IfNull(cells);
+        _cells = Throw.IfNull(cells);
     }
 
     /// <summary>
@@ -308,8 +318,9 @@ public sealed class IngestionDocumentTable : IngestionDocumentElement
     {
         rowCount = Throw.IfLessThan(rowCount, 1);
         columnCount = Throw.IfLessThan(columnCount, 1);
-        StructuredCells = Throw.IfNull(cells).ToArray();
-        Cells = CreateCellGrid(rowCount, columnCount, StructuredCells);
+        IngestionDocumentTableCell[] cellSnapshot = Throw.IfNull(cells).ToArray();
+        StructuredCells = Array.AsReadOnly(cellSnapshot);
+        _cells = CreateCellGrid(rowCount, columnCount, cellSnapshot);
     }
 
     /// <summary>
@@ -318,6 +329,8 @@ public sealed class IngestionDocumentTable : IngestionDocumentElement
     /// <remarks>This value is <see langword="null"/> for tables created from explicit Markdown.</remarks>
     public IReadOnlyList<IngestionDocumentTableCell>? StructuredCells { get; }
 
+    internal IngestionDocumentElement?[,] CellGrid => _cells;
+
     /// <summary>
     /// Gets the cells of the table.
     /// Each table can be represented as a two-dimensional array of cell contents, with the first row being the headers.
@@ -325,9 +338,15 @@ public sealed class IngestionDocumentTable : IngestionDocumentElement
     /// <remarks>
     /// <para>This information is useful when chunking large tables that exceed token count limit.</para>
     /// <para>Null represents an empty cell (<see cref="IngestionDocumentElement.GetMarkdown()"/> can't return an empty string).</para>
+    /// <para>For a structured table, each call returns a snapshot so the derived grid cannot diverge from <see cref="StructuredCells"/>.</para>
     /// </remarks>
 #pragma warning disable CA1819 // Properties should not return arrays
-    public IngestionDocumentElement?[,] Cells { get; }
+#pragma warning disable S2365 // The existing property returns a defensive snapshot for structured tables.
+    public IngestionDocumentElement?[,] Cells
+        => StructuredCells is null
+            ? _cells
+            : (IngestionDocumentElement?[,])_cells.Clone();
+#pragma warning restore S2365
 #pragma warning restore CA1819 // Properties should not return arrays
 #pragma warning restore S3967 // Multidimensional arrays should not be used
 #pragma warning restore CA1814 // Prefer jagged arrays over multidimensional

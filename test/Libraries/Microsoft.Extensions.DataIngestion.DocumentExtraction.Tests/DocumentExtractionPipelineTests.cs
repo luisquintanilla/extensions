@@ -34,9 +34,7 @@ public class DocumentExtractionPipelineTests
         Assert.Contains(chunks, chunk =>
             ContainsOrdinal(chunk.Content, "Quarterly *Report*")
             && !ContainsOrdinal(chunk.Content, @"Quarterly \*Report\*"));
-        Assert.Contains(chunks, chunk =>
-            ContainsOrdinal(chunk.Content, "rowspan=\"2\"")
-            && ContainsOrdinal(chunk.Content, "data-kind=\"rowHeader\""));
+        Assert.Contains(chunks, IsNestedTableChunk);
         Assert.DoesNotContain(chunks, chunk =>
             ContainsOrdinal(chunk.Content, DocumentExtractionBridgeFixture.PageOneMarkdown));
         Assert.All(chunks, chunk => Assert.False(chunk.HasMetadata));
@@ -115,6 +113,26 @@ public class DocumentExtractionPipelineTests
     }
 
     [Fact]
+    public async Task StockBinaryTraversalDoesNotEmitNestedImageBytes()
+    {
+        IngestionDocument document = await ReadFixtureAsync();
+        IngestionDocumentTable table = Assert.Single(
+            document.EnumerateContent().OfType<IngestionDocumentTable>());
+        IngestionDocumentImage nestedImage = Assert.IsType<IngestionDocumentImage>(
+            table.StructuredCells![0].Elements[3]);
+
+        Assert.Equal(3, nestedImage.Content!.Value.Length);
+        Assert.Equal("Nested chart", nestedImage.AlternativeText);
+
+        IReadOnlyList<IngestionChunk<DataContent>> chunks = await new ImageChunker()
+            .ProcessAsync(document)
+            .ToListAsync();
+
+        IngestionChunk<DataContent> topLevelImageChunk = Assert.Single(chunks);
+        Assert.Equal(8, topLevelImageChunk.Content.Data.Length);
+    }
+
+    [Fact]
     public async Task ElementAwareChunkingKeepsEveryCodeSegmentFenced()
     {
         IngestionDocument document = await ReadFixtureAsync();
@@ -163,6 +181,37 @@ public class DocumentExtractionPipelineTests
 #pragma warning disable CA2249 // String.Contains with StringComparison is unavailable on .NET Framework.
         => value.IndexOf(expected, System.StringComparison.Ordinal) >= 0;
 #pragma warning restore CA2249
+
+    private static bool IsNestedTableChunk(IngestionChunk<string> chunk)
+    {
+        if (!ContainsOrdinal(chunk.Content, "rowspan=\"2\"")
+            || !ContainsOrdinal(chunk.Content, "data-kind=\"rowHeader\""))
+        {
+            return false;
+        }
+
+        if (CountOccurrences(chunk.Content, "<table>") != 2
+            || ContainsOrdinal(chunk.Content, "&lt;table&gt;"))
+        {
+            return false;
+        }
+
+        return ContainsOrdinal(chunk.Content, "Nested value")
+            && ContainsOrdinal(chunk.Content, "Nested chart");
+    }
+
+    private static int CountOccurrences(string value, string expected)
+    {
+        int count = 0;
+        int startIndex = 0;
+        while ((startIndex = value.IndexOf(expected, startIndex, System.StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            startIndex += expected.Length;
+        }
+
+        return count;
+    }
 
     private sealed class ImageChunker : IngestionChunker<DataContent>
     {
