@@ -40,15 +40,17 @@ The finite node union is closed to external derivation and has explicit stable `
 
 ## Measured comparison
 
-Measurements are against common base `1fec8651d88b19ae855c39239e75645c548e5dde`; bridge figures come from the pinned comparison evidence.
+Both alternatives are measured against common base `1fec8651d88b19ae855c39239e75645c548e5dde`. The shared-tree figures use head `e743fa91c8c8158226ece422a3e064693ddcb17e`; bridge figures use head `c4e31ad04b16996aed67bd75319cbf4fc4fc7d4e`.
 
-| Measure | Bridge evidence | Shared-tree implementation |
+| Measure | Bridge | Shared tree |
 |---|---:|---:|
-| Production lines changed | +855/-38 | +1,898/-1,649 |
-| Test lines changed | +353/-2 | +725/-2,068 |
-| New shared/integration public types | 0 | 14 |
-| Shared package public signatures | 0 | 50 across 13 types |
-| Integration package public signatures | reader in MEDI | 2 across 1 type |
+| All `src/` lines | +1,289/-52 | +2,079/-1,650 |
+| All `test/` lines | +1,031/-1 | +941/-2,067 |
+| Production C# (`src/**/*.cs`) | +1,148/-51 | +1,562/-1,339 |
+| Test C# (`test/**/*.cs`) | +1,007/-1 | +912/-2,067 |
+| New public types | 5 | 14 |
+| Shared package public signatures | 0 | 49 across 13 types |
+| Integration package public signatures | 2 | 2 |
 | MEDI semantic types replaced | 0 | 7; `IngestionDocument` retained only as context |
 | Neutral-package product dependencies | N/A | 0 |
 | Consumer-owned mapping | 0 | 0 |
