@@ -44,8 +44,8 @@ Measurements are against common base `1fec8651d88b19ae855c39239e75645c548e5dde`;
 
 | Measure | Bridge evidence | Shared-tree implementation |
 |---|---:|---:|
-| Production lines changed | +855/-38 | +1,870/-1,648 |
-| Test lines changed | +353/-2 | +703/-2,068 |
+| Production lines changed | +855/-38 | +1,898/-1,649 |
+| Test lines changed | +353/-2 | +725/-2,068 |
 | New shared/integration public types | 0 | 14 |
 | Shared package public signatures | 0 | 50 across 13 types |
 | Integration package public signatures | reader in MEDI | 2 across 1 type |
