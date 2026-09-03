@@ -26,7 +26,7 @@ public abstract class VectorStoreWriterTests
         IngestionDocument document = new(documentId);
         List<IngestionChunk<string>> chunks =
         [
-            new("some content", document)
+            new("some content", document, context: null, pageNumbers: [2, 1, 2])
             {
                 Metadata =
                 {
@@ -49,6 +49,7 @@ public abstract class VectorStoreWriterTests
         Assert.NotNull(record["key"]);
         Assert.Equal(documentId, record["documentid"]);
         Assert.Equal(chunks[0].Content, record["content"]);
+        Assert.Equal("1,2", record["pagenumbers"]);
         Assert.True(testEmbeddingGenerator.WasCalled);
         foreach (var kvp in chunks[0].Metadata)
         {

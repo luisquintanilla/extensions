@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Microsoft.Extensions.DataIngestion</RootNamespace>
+    <Description>Unit tests for Microsoft.Extensions.DataIngestion.DocumentExtraction.</Description>
+    <NoWarn>$(NoWarn);MEDE0001;CA1063;CA1814;CA2000;S3967</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Libraries\Microsoft.Extensions.DataIngestion.DocumentExtraction\Microsoft.Extensions.DataIngestion.DocumentExtraction.csproj" ProjectUnderTest="true" />
+    <ProjectReference Include="..\..\..\src\Libraries\Microsoft.Extensions.DataIngestion\Microsoft.Extensions.DataIngestion.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.VectorData.InMemory" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Microsoft.Extensions.DataIngestion.Tests\Utils\TestEmbeddingGenerator.cs" Link="TestEmbeddingGenerator.cs" />
+    <Compile Include="..\Microsoft.Extensions.DocumentExtraction.Abstractions.Tests\TestDocumentExtractionClient.cs" Link="TestDocumentExtractionClient.cs" />
+  </ItemGroup>
+
+</Project>
