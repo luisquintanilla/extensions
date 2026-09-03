@@ -30,6 +30,7 @@ public static class DocumentExtractionPageResultExtensions
             ProcessUpdate(update, pages, result);
         }
 
+        OrderPages(pages);
         return result;
     }
 
@@ -56,6 +57,7 @@ public static class DocumentExtractionPageResultExtensions
                 ProcessUpdate(update, pages, result);
             }
 
+            OrderPages(pages);
             return result;
         }
     }
@@ -83,4 +85,7 @@ public static class DocumentExtractionPageResultExtensions
             }
         }
     }
+
+    private static void OrderPages(List<DocumentPage> pages) =>
+        pages.Sort(static (left, right) => left.PageNumber.CompareTo(right.PageNumber));
 }

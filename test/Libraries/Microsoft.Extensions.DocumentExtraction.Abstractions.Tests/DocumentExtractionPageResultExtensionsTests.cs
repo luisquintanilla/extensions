@@ -27,8 +27,8 @@ public class DocumentExtractionPageResultExtensionsTests
     {
         DocumentExtractionPageResult[] updates =
         [
-            new(new DocumentPage(1, [new DocumentBlock("page one")], "# page one")) { TotalPages = 2 },
             new(new DocumentPage(2, [new DocumentBlock("page two")])) { TotalPages = 2 },
+            new(new DocumentPage(1, [new DocumentBlock("page one")], "# page one")) { TotalPages = 2 },
         ];
 
         DocumentExtractionResult result = updates.ToDocumentExtractionResult();
@@ -44,8 +44,8 @@ public class DocumentExtractionPageResultExtensionsTests
     {
         DocumentExtractionPageResult[] updates =
         [
-            new(new DocumentPage(1, [new DocumentBlock("page one")])),
             new(new DocumentPage(2, [new DocumentBlock("page two")], "## page two")),
+            new(new DocumentPage(1, [new DocumentBlock("page one")])),
         ];
 
         DocumentExtractionResult result = await YieldAsync(updates).ToDocumentExtractionResultAsync();
