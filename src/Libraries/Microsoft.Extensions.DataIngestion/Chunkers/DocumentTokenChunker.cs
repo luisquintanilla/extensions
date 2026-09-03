@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -46,6 +47,7 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
 
             int stringBuilderTokenCount = 0;
             StringBuilder stringBuilder = new();
+            List<ContentRange> contentRanges = [];
             foreach (IngestionDocumentElement element in document.EnumerateContent())
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -55,6 +57,7 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                     continue;
                 }
 
+                int[] elementPageNumbers = GetPageNumbers(element);
                 int contentToProcessTokenCount = _tokenizer.CountTokens(elementContent!, considerNormalization: false);
                 ReadOnlyMemory<char> contentToProcess = elementContent.AsMemory();
                 while (stringBuilderTokenCount + contentToProcessTokenCount >= _maxTokensPerChunk)
@@ -68,9 +71,15 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
 
                     unsafe
                     {
+                        int start = stringBuilder.Length;
                         fixed (char* ptr = &MemoryMarshal.GetReference(contentToProcess.Span))
                         {
                             _ = stringBuilder.Append(ptr, index);
+                        }
+
+                        if (index > 0)
+                        {
+                            contentRanges.Add(new(start, index, elementPageNumbers));
                         }
                     }
                     yield return FinalizeChunk();
@@ -79,8 +88,13 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                     contentToProcessTokenCount = _tokenizer.CountTokens(contentToProcess.Span, considerNormalization: false);
                 }
 
-                _ = stringBuilder.Append(contentToProcess);
-                stringBuilderTokenCount += contentToProcessTokenCount;
+                if (!contentToProcess.IsEmpty)
+                {
+                    int start = stringBuilder.Length;
+                    _ = stringBuilder.Append(contentToProcess);
+                    contentRanges.Add(new(start, contentToProcess.Length, elementPageNumbers));
+                    stringBuilderTokenCount += contentToProcessTokenCount;
+                }
             }
 
             if (stringBuilder.Length > 0)
@@ -94,20 +108,41 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                 IngestionChunk<string> chunk = new IngestionChunk<string>(
                     content: stringBuilder.ToString(),
                     document: document,
-                    context: string.Empty);
+                    context: string.Empty,
+                    pageNumbers: contentRanges
+                        .Where(static range => range.Length > 0)
+                        .SelectMany(static range => range.PageNumbers)
+                        .Distinct()
+                        .OrderBy(static pageNumber => pageNumber)
+                        .ToArray());
+                string chunkContent = chunk.Content;
                 _ = stringBuilder.Clear();
                 stringBuilderTokenCount = 0;
 
                 if (_chunkOverlap > 0)
                 {
                     int index = _tokenizer.GetIndexByTokenCountFromEnd(
-                        text: chunk.Content,
+                        text: chunkContent,
                         maxTokenCount: _chunkOverlap,
                         out string? _,
                         out stringBuilderTokenCount,
                         considerNormalization: false);
 
-                    ReadOnlySpan<char> overlapContent = chunk.Content.AsSpan().Slice(index);
+                    ReadOnlySpan<char> overlapContent = chunkContent.AsSpan().Slice(index);
+                    List<ContentRange> overlapRanges = [];
+                    foreach (ContentRange range in contentRanges)
+                    {
+                        int overlapStart = Math.Max(range.Start, index);
+                        int overlapEnd = Math.Min(range.Start + range.Length, chunkContent.Length);
+                        if (overlapStart < overlapEnd)
+                        {
+                            overlapRanges.Add(new(
+                                overlapStart - index,
+                                overlapEnd - overlapStart,
+                                range.PageNumbers));
+                        }
+                    }
+
                     unsafe
                     {
                         fixed (char* ptr = &MemoryMarshal.GetReference(overlapContent))
@@ -115,11 +150,63 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                             _ = stringBuilder.Append(ptr, overlapContent.Length);
                         }
                     }
+
+                    contentRanges = overlapRanges;
+                }
+                else
+                {
+                    contentRanges.Clear();
                 }
 
                 return chunk;
             }
         }
 
+        private static int[] GetPageNumbers(IngestionDocumentElement element)
+        {
+            HashSet<int> pageNumbers = [];
+            AddPageNumbers(element, pageNumbers);
+            return [.. pageNumbers.OrderBy(static pageNumber => pageNumber)];
+        }
+
+        private static void AddPageNumbers(IngestionDocumentElement element, HashSet<int> pageNumbers)
+        {
+            if (element.PageNumber is int pageNumber)
+            {
+                _ = pageNumbers.Add(pageNumber);
+            }
+
+            switch (element)
+            {
+                case IngestionDocumentSection section:
+                    foreach (IngestionDocumentElement nested in section.Elements)
+                    {
+                        AddPageNumbers(nested, pageNumbers);
+                    }
+                    break;
+
+                case IngestionDocumentTable { StructuredCells: not null } table:
+                    foreach (IngestionDocumentTableCell cell in table.StructuredCells)
+                    {
+                        foreach (IngestionDocumentElement nested in cell.Elements)
+                        {
+                            AddPageNumbers(nested, pageNumbers);
+                        }
+                    }
+                    break;
+
+                case IngestionDocumentTable table:
+                    foreach (IngestionDocumentElement? nested in table.Cells)
+                    {
+                        if (nested is not null)
+                        {
+                            AddPageNumbers(nested, pageNumbers);
+                        }
+                    }
+                    break;
+            }
+        }
+
+        private readonly record struct ContentRange(int Start, int Length, int[] PageNumbers);
     }
 }

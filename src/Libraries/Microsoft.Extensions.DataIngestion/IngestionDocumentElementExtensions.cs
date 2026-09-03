@@ -18,7 +18,8 @@ internal static class IngestionDocumentElementExtensions
         return element switch
         {
             IngestionDocumentImage image => image.AlternativeText ?? image.Text,
-            _ => element.GetMarkdown()
+            IngestionDocumentCodeBlock => element.GetMarkdown(),
+            _ => element.Text ?? element.GetMarkdown()
         };
     }
 }

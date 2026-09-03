@@ -3,6 +3,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.VectorData;
@@ -22,6 +24,7 @@ public sealed class VectorStoreWriter<T> : IngestionChunkWriter<T>
     private const string ContentName = "content";
     private const string ContextName = "context";
     private const string DocumentIdName = "documentid";
+    private const string PageNumbersName = "pagenumbers";
 
     private readonly VectorStore _vectorStore;
     private readonly int _dimensionCount;
@@ -83,6 +86,11 @@ public sealed class VectorStoreWriter<T> : IngestionChunkWriter<T>
                 [EmbeddingName] = chunk.Content,
                 [ContextName] = chunk.Context,
                 [DocumentIdName] = chunk.Document.Identifier,
+                [PageNumbersName] = chunk.PageNumbers.Count == 0
+                    ? null
+#pragma warning disable LA0002 // Avoid a shared-text dependency solely for a persisted compatibility string.
+                    : string.Join(",", chunk.PageNumbers.Select(static value => value.ToString(CultureInfo.InvariantCulture))),
+#pragma warning restore LA0002
             };
 
             if (chunk.HasMetadata)
@@ -133,6 +141,7 @@ public sealed class VectorStoreWriter<T> : IngestionChunkWriter<T>
                 },
                 new VectorStoreDataProperty(ContentName, typeof(T)),
                 new VectorStoreDataProperty(ContextName, typeof(string)),
+                new VectorStoreDataProperty(PageNumbersName, typeof(string)),
                 new VectorStoreDataProperty(DocumentIdName, typeof(string))
                 {
                     IsIndexed = true
