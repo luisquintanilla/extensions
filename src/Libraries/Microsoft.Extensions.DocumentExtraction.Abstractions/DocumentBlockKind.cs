@@ -32,6 +32,9 @@ public readonly struct DocumentBlockKind : IEquatable<DocumentBlockKind>
     /// <summary>Gets the kind representing a figure or image region.</summary>
     public static DocumentBlockKind Figure { get; } = new("figure");
 
+    /// <summary>Gets the kind representing a source-code block.</summary>
+    public static DocumentBlockKind Code { get; } = new("code");
+
     /// <summary>Gets the value associated with this <see cref="DocumentBlockKind"/>.</summary>
     public string Value { get; }
 

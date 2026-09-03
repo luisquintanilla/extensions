@@ -44,10 +44,18 @@ public sealed class SectionChunker : IngestionChunker<string>
         }
     }
 
-    private void Process(IngestionDocument document, IngestionDocumentSection section, List<IngestionChunk<string>> chunks, string? parentContext = null)
+    private void Process(
+        IngestionDocument document,
+        IngestionDocumentSection section,
+        List<IngestionChunk<string>> chunks,
+        string? parentContext = null,
+        IReadOnlyList<int>? parentContextPageNumbers = null)
     {
         List<IngestionDocumentElement> elements = new(section.Elements.Count);
         string context = parentContext ?? string.Empty;
+        List<int> contextPageNumbers = parentContextPageNumbers is null
+            ? []
+            : [.. parentContextPageNumbers];
 
         for (int i = 0; i < section.Elements.Count; i++)
         {
@@ -56,13 +64,19 @@ public sealed class SectionChunker : IngestionChunker<string>
                 // If the first element is a header, we use it as a context.
                 // This is common for various documents and readers.
                 case IngestionDocumentHeader documentHeader when i == 0:
+                    string headerContent = documentHeader.GetSemanticContent() ?? string.Empty;
                     context = string.IsNullOrEmpty(context)
-                        ? documentHeader.GetMarkdown()
-                        : context + $" {documentHeader.GetMarkdown()}";
+                        ? headerContent
+                        : context + $" {headerContent}";
+                    if (documentHeader.PageNumber is int pageNumber
+                        && !contextPageNumbers.Contains(pageNumber))
+                    {
+                        contextPageNumbers.Add(pageNumber);
+                    }
                     break;
                 case IngestionDocumentSection nestedSection:
                     Commit();
-                    Process(document, nestedSection, chunks, context);
+                    Process(document, nestedSection, chunks, context, contextPageNumbers);
                     break;
                 default:
                     elements.Add(section.Elements[i]);
@@ -76,7 +90,7 @@ public sealed class SectionChunker : IngestionChunker<string>
         {
             if (elements.Count > 0)
             {
-                foreach (var chunk in _elementsChunker.Process(document, context, elements))
+                foreach (var chunk in _elementsChunker.Process(document, context, elements, contextPageNumbers))
                 {
                     chunks.Add(chunk);
                 }
