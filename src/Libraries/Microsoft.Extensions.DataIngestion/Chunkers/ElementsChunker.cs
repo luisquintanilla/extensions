@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Microsoft.Extensions.Documents;
 using Microsoft.ML.Tokenizers;
@@ -56,6 +57,30 @@ internal sealed class ElementsChunker
                 totalTokenCount += elementTokenCount;
                 AppendNewLineAndSpan(_currentChunk, semanticContent.AsSpan());
                 contributingNodes.Add(element);
+            }
+            else if (element is DocumentTable table)
+            {
+                if (totalTokenCount > contextTokenCount)
+                {
+                    Commit();
+                }
+
+                List<DocumentNode> tableNodes = [.. contributingNodes, .. GetTableNodes(table)];
+                foreach (string tableChunk in GetTableChunks(table))
+                {
+                    string content = context.Length == 0 ? tableChunk : context + "\n" + tableChunk;
+                    if (CountTokens(content.AsSpan()) > _maxTokensPerChunk)
+                    {
+                        ThrowTokenCountExceeded();
+                    }
+
+                    chunks.Add(new(
+                        content,
+                        document,
+                        context,
+                        tableNodes.GetSourceNodeIds(),
+                        tableNodes.GetPageNumbers()));
+                }
             }
             else
             {
@@ -146,6 +171,63 @@ internal sealed class ElementsChunker
 #else
         _ = builder.Append(chars.ToString());
 #endif
+    }
+
+    private static IEnumerable<DocumentNode> GetTableNodes(DocumentTable table)
+    {
+        yield return table;
+        foreach (DocumentTableCell cell in table.Cells)
+        {
+            yield return cell;
+            foreach (DocumentNode node in cell.Content)
+            {
+                yield return node;
+            }
+        }
+    }
+
+    private static IEnumerable<string> GetTableChunks(DocumentTable table)
+    {
+        IGrouping<int, DocumentTableCell>[] rows = table.Cells
+            .GroupBy(static cell => cell.RowIndex)
+            .OrderBy(static row => row.Key)
+            .ToArray();
+        if (rows.Length == 0)
+        {
+            yield break;
+        }
+
+        string header = GetTableRow(rows[0]);
+        if (rows.Length == 1)
+        {
+            yield return header;
+            yield break;
+        }
+
+        for (int rowIndex = 1; rowIndex < rows.Length; rowIndex++)
+        {
+            yield return header + "\n" + GetTableRow(rows[rowIndex]);
+        }
+    }
+
+    private static string GetTableRow(IEnumerable<DocumentTableCell> cells)
+    {
+        List<string> columns = [];
+        foreach (DocumentTableCell cell in cells.OrderBy(static cell => cell.ColumnIndex))
+        {
+            while (columns.Count < cell.ColumnIndex)
+            {
+                columns.Add(string.Empty);
+            }
+
+            columns.Add(DocumentTextProjection.GetText(cell.Content));
+            for (int span = 1; span < cell.ColumnSpan; span++)
+            {
+                columns.Add(string.Empty);
+            }
+        }
+
+        return string.Join("\t", columns);
     }
 
     private static void ThrowTokenCountExceeded() =>

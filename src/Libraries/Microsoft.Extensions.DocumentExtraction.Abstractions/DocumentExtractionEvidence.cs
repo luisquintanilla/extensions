@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Documents;
 using Microsoft.Shared.DiagnosticIds;
+using Microsoft.Shared.Diagnostics;
 
 namespace Microsoft.Extensions.DocumentExtraction;
 
@@ -22,6 +23,11 @@ public sealed class DocumentExtractionEvidence
     /// <param name="nodeId">The shared semantic node identifier.</param>
     public DocumentExtractionEvidence(DocumentNodeId nodeId)
     {
+        if (nodeId == default)
+        {
+            Throw.ArgumentException(nameof(nodeId), "An evidence node identifier cannot be empty.");
+        }
+
         NodeId = nodeId;
     }
 

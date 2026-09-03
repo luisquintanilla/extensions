@@ -99,10 +99,10 @@ public class DocumentExtractionReaderTests
             2,
             3,
             [
-                new DocumentTableCell(0, 0, [new DocumentText(new("region"), "Region")], rowSpan: 2, role: DocumentTableCellRole.RowHeader),
-                new DocumentTableCell(0, 1, [new DocumentText(new("revenue"), "Revenue")], columnSpan: 2, role: DocumentTableCellRole.ColumnHeader),
-                new DocumentTableCell(1, 1, [new DocumentText(new("q1"), "Q1")]),
-                new DocumentTableCell(1, 2, [new DocumentText(new("q2"), "Q2")]),
+                new DocumentTableCell(new("cell-region"), 0, 0, [new DocumentText(new("region"), "Region")], rowSpan: 2, role: DocumentTableCellRole.RowHeader),
+                new DocumentTableCell(new("cell-revenue"), 0, 1, [new DocumentText(new("revenue"), "Revenue")], columnSpan: 2, role: DocumentTableCellRole.ColumnHeader),
+                new DocumentTableCell(new("cell-q1"), 1, 1, [new DocumentText(new("q1"), "Q1")]),
+                new DocumentTableCell(new("cell-q2"), 1, 2, [new DocumentText(new("q2"), "Q2")]),
             ],
             pageReferences: [new(2)]);
 

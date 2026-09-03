@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
 using Microsoft.Extensions.Documents;
 using Xunit;
 
@@ -62,6 +63,18 @@ public class DocumentExtractionResultTests
         DocumentPage second = new(2, new Document([new DocumentText(new("same"), "two")]));
 
         Assert.Throws<ArgumentException>("children", () => new DocumentExtractionResult([first, second]));
+    }
+
+    [Fact]
+    public void PagesAreDefensivelySnapshotted()
+    {
+        List<DocumentPage> pages = [TestDocument.Page(1, "one")];
+        DocumentExtractionResult result = new(pages);
+
+        pages.Add(TestDocument.Page(2, "two"));
+
+        Assert.Single(result.Pages);
+        Assert.Equal("one", result.Text);
     }
 
     [Fact]

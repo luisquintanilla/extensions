@@ -22,10 +22,10 @@ public class SharedDocumentChunkerTests
             2,
             2,
             [
-                new DocumentTableCell(0, 0, [TestDocuments.Text("h1", "Region", pageNumber: 1)], role: DocumentTableCellRole.ColumnHeader),
-                new DocumentTableCell(0, 1, [TestDocuments.Text("h2", "Revenue", pageNumber: 1)], role: DocumentTableCellRole.ColumnHeader),
-                new DocumentTableCell(1, 0, [TestDocuments.Text("c1", "West", pageNumber: 2)]),
-                new DocumentTableCell(1, 1, [TestDocuments.Text("c2", "$1", pageNumber: 2)]),
+                new DocumentTableCell(new("cell-00"), 0, 0, [TestDocuments.Text("h1", "Region", pageNumber: 1)], role: DocumentTableCellRole.ColumnHeader),
+                new DocumentTableCell(new("cell-01"), 0, 1, [TestDocuments.Text("h2", "Revenue", pageNumber: 1)], role: DocumentTableCellRole.ColumnHeader),
+                new DocumentTableCell(new("cell-10"), 1, 0, [TestDocuments.Text("c1", "West", pageNumber: 2)]),
+                new DocumentTableCell(new("cell-11"), 1, 1, [TestDocuments.Text("c2", "$1", pageNumber: 2)]),
             ],
             pageReferences: [new(1), new(2)]);
         IngestionDocument document = TestDocuments.Create(

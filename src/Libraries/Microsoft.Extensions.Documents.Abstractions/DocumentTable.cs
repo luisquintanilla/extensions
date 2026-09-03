@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Microsoft.Extensions.Documents;
 
@@ -18,16 +19,20 @@ public enum DocumentTableCellRole
 }
 
 /// <summary>Represents a structured table cell with ordered nested content.</summary>
-public sealed class DocumentTableCell
+public sealed class DocumentTableCell : DocumentNode
 {
     /// <summary>Initializes a new instance of the <see cref="DocumentTableCell"/> class.</summary>
     public DocumentTableCell(
+        DocumentNodeId id,
         int rowIndex,
         int columnIndex,
         IEnumerable<DocumentNode> content,
         int rowSpan = 1,
         int columnSpan = 1,
-        DocumentTableCellRole role = DocumentTableCellRole.Content)
+        DocumentTableCellRole role = DocumentTableCellRole.Content,
+        IEnumerable<DocumentPageReference>? pageReferences = null,
+        IEnumerable<DocumentNodeId>? sourceNodeIds = null)
+        : base(id, pageReferences, sourceNodeIds)
     {
         if (rowIndex < 0)
         {
@@ -74,6 +79,8 @@ public sealed class DocumentTableCell
 
     /// <summary>Gets the cell content in reading order.</summary>
     public IReadOnlyList<DocumentNode> Content { get; }
+
+    internal override IEnumerable<DocumentNode> GetNestedNodes() => Content;
 }
 
 /// <summary>Represents a structured table in a document.</summary>
@@ -101,7 +108,9 @@ public sealed class DocumentTable : DocumentNode
 
         RowCount = rowCount;
         ColumnCount = columnCount;
-        Cells = Copy(cells ?? throw new ArgumentNullException(nameof(cells)));
+        Cells = Copy((cells ?? throw new ArgumentNullException(nameof(cells)))
+            .OrderBy(static cell => cell.RowIndex)
+            .ThenBy(static cell => cell.ColumnIndex));
         ValidateCells();
     }
 
@@ -118,10 +127,7 @@ public sealed class DocumentTable : DocumentNode
     {
         foreach (DocumentTableCell cell in Cells)
         {
-            foreach (DocumentNode node in cell.Content)
-            {
-                yield return node;
-            }
+            yield return cell;
         }
     }
 
@@ -130,7 +136,10 @@ public sealed class DocumentTable : DocumentNode
         bool[,] occupied = new bool[RowCount, ColumnCount];
         foreach (DocumentTableCell cell in Cells)
         {
-            if (cell.RowIndex + cell.RowSpan > RowCount || cell.ColumnIndex + cell.ColumnSpan > ColumnCount)
+            if (cell.RowIndex >= RowCount ||
+                cell.ColumnIndex >= ColumnCount ||
+                cell.RowSpan > RowCount - cell.RowIndex ||
+                cell.ColumnSpan > ColumnCount - cell.ColumnIndex)
             {
                 throw new ArgumentException($"Cell [{cell.RowIndex}, {cell.ColumnIndex}] exceeds the table bounds.", nameof(Cells));
             }

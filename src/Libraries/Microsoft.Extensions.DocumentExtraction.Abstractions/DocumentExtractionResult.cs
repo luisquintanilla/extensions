@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.Json.Serialization;
@@ -27,8 +28,8 @@ public class DocumentExtractionResult
     /// <exception cref="System.ArgumentNullException"><paramref name="pages"/> is <see langword="null"/>.</exception>
     public DocumentExtractionResult(IReadOnlyList<DocumentPage> pages)
     {
-        Pages = Throw.IfNull(pages);
-        Document = new(pages.SelectMany(static page => page.Document.Children));
+        Pages = new ReadOnlyCollection<DocumentPage>(Throw.IfNull(pages).ToArray());
+        Document = new(Pages.SelectMany(static page => page.Document.Children));
     }
 
     /// <summary>Gets the per-page structured content (text, tables, blocks).</summary>

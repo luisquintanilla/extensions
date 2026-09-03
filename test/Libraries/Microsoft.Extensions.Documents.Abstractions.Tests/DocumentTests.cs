@@ -33,10 +33,10 @@ public class DocumentTests
                         2,
                         3,
                         [
-                            new DocumentTableCell(0, 0, [new DocumentText(new("region"), "Region")], rowSpan: 2, role: DocumentTableCellRole.RowHeader),
-                            new DocumentTableCell(0, 1, [new DocumentText(new("revenue"), "Revenue")], columnSpan: 2, role: DocumentTableCellRole.ColumnHeader),
-                            new DocumentTableCell(1, 1, [new DocumentText(new("q1"), "Q1")]),
-                            new DocumentTableCell(1, 2, [new DocumentText(new("q2"), "Q2")]),
+                            new DocumentTableCell(new("cell-region"), 0, 0, [new DocumentText(new("region"), "Region")], rowSpan: 2, role: DocumentTableCellRole.RowHeader),
+                            new DocumentTableCell(new("cell-revenue"), 0, 1, [new DocumentText(new("revenue"), "Revenue")], columnSpan: 2, role: DocumentTableCellRole.ColumnHeader),
+                            new DocumentTableCell(new("cell-q1"), 1, 1, [new DocumentText(new("q1"), "Q1")]),
+                            new DocumentTableCell(new("cell-q2"), 1, 2, [new DocumentText(new("q2"), "Q2")]),
                         ]),
                     new DocumentImage(new("image"), new byte[] { 1, 2, 3 }, "image/png", description: "Chart"),
                 ]),
@@ -44,7 +44,7 @@ public class DocumentTests
 
         Assert.Equal("*Report*\n\nUse `code` literally.\n\nRegion\tRevenue\t\n\tQ1\tQ2\n\nChart", document.Text);
         Assert.Equal("Q1", Assert.IsType<DocumentText>(document.GetNode(new("q1"))).Text);
-        Assert.Equal(11, document.Nodes.Count);
+        Assert.Equal(15, document.Nodes.Count);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class DocumentTests
             new("table"),
             1,
             1,
-            [new DocumentTableCell(0, 0, [new DocumentText(new("duplicate"), "cell")])]);
+            [new DocumentTableCell(new("cell"), 0, 0, [new DocumentText(new("duplicate"), "cell")])]);
 
         Assert.Throws<ArgumentException>("children", () =>
             new Document([new DocumentText(new("duplicate"), "root"), table]));
@@ -82,15 +82,15 @@ public class DocumentTests
             new("nested"),
             1,
             1,
-            [new DocumentTableCell(0, 0, [new DocumentText(new("nested-text"), "inside")])]);
+            [new DocumentTableCell(new("nested-cell"), 0, 0, [new DocumentText(new("nested-text"), "inside")])]);
         DocumentTable outer = new(
             new("outer"),
             2,
             2,
             [
-                new DocumentTableCell(0, 0, [nested], rowSpan: 2),
-                new DocumentTableCell(0, 1, [new DocumentText(new("header"), "value")], role: DocumentTableCellRole.ColumnHeader),
-                new DocumentTableCell(1, 1, [new DocumentText(new("cell"), "tail")]),
+                new DocumentTableCell(new("outer-cell-00"), 0, 0, [nested], rowSpan: 2),
+                new DocumentTableCell(new("outer-cell-01"), 0, 1, [new DocumentText(new("header"), "value")], role: DocumentTableCellRole.ColumnHeader),
+                new DocumentTableCell(new("outer-cell-11"), 1, 1, [new DocumentText(new("cell"), "tail")]),
             ]);
 
         Document document = new([outer]);
@@ -110,6 +110,32 @@ public class DocumentTests
 
         Assert.Equal([1, 2, 3], image.Content.ToArray());
         Assert.Equal(string.Empty, new Document([image]).Text);
+    }
+
+    [Fact]
+    public void RejectsDefaultIdentifiersAndOverflowingCells()
+    {
+        Assert.Throws<ArgumentException>("id", () => new DocumentText(default, "text"));
+        Assert.Throws<ArgumentException>("pageReferences", () =>
+            new DocumentText(new("text"), "text", pageReferences: [default]));
+        Assert.Throws<ArgumentException>("sourceNodeIds", () =>
+            new DocumentText(new("text"), "text", sourceNodeIds: [default]));
+        Assert.Throws<ArgumentException>("Cells", () =>
+            new DocumentTable(
+                new("table"),
+                1,
+                1,
+                [new DocumentTableCell(new("cell"), int.MaxValue, 0, [])]));
+    }
+
+    [Fact]
+    public void CellsAreNodesAndTraversalUsesRowColumnOrder()
+    {
+        DocumentTableCell second = new(new("second"), 0, 1, [new DocumentText(new("b"), "B")]);
+        DocumentTableCell first = new(new("first"), 0, 0, [new DocumentText(new("a"), "A")]);
+        Document document = new([new DocumentTable(new("table"), 1, 2, [second, first])]);
+
+        Assert.Equal(["table", "first", "a", "second", "b"], document.Nodes.Select(node => node.Id.Value));
     }
 
     [Fact]

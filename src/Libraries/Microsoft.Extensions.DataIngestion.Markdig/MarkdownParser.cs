@@ -123,10 +123,12 @@ internal static class MarkdownParser
         DocumentNodeId tableId = ids.Next();
         List<DocumentTableCell> cells = [];
         int columnCount = 0;
+        int firstRowIndex = table.Count > 0 && IsEmptyTableRow((TableRow)table[0]) ? 1 : 0;
 
-        for (int rowIndex = 0; rowIndex < table.Count; rowIndex++)
+        for (int sourceRowIndex = firstRowIndex; sourceRowIndex < table.Count; sourceRowIndex++)
         {
-            TableRow row = (TableRow)table[rowIndex];
+            int rowIndex = sourceRowIndex - firstRowIndex;
+            TableRow row = (TableRow)table[sourceRowIndex];
             int columnIndex = 0;
             foreach (TableCell cell in row)
             {
@@ -141,6 +143,7 @@ internal static class MarkdownParser
 
                 int columnSpan = Math.Max(1, cell.ColumnSpan);
                 cells.Add(new(
+                    ids.Next(),
                     rowIndex,
                     columnIndex,
                     content,
@@ -152,7 +155,7 @@ internal static class MarkdownParser
             columnCount = Math.Max(columnCount, columnIndex);
         }
 
-        return new DocumentTable(tableId, table.Count, columnCount, cells);
+        return new DocumentTable(tableId, table.Count - firstRowIndex, columnCount, cells);
     }
 
     private static bool TryGetOnlyImage(ParagraphBlock paragraph, out LinkInline? image)
@@ -166,7 +169,7 @@ internal static class MarkdownParser
 
         LinkInline selectedImage = image!;
         bool hasOtherText = paragraph.Inline.Descendants<LiteralInline>()
-            .Any(literal => !ReferenceEquals(literal.Parent, selectedImage) && !string.IsNullOrWhiteSpace(literal.Content.ToString()));
+            .Any(literal => !IsDescendantOf(literal, selectedImage) && !string.IsNullOrWhiteSpace(literal.Content.ToString()));
         if (images.Length != 1 || hasOtherText)
         {
             throw new NotSupportedException("Markdown paragraphs that mix images with other content are not supported.");
@@ -177,7 +180,7 @@ internal static class MarkdownParser
 
     private static DocumentImage MapImage(LinkInline link, NodeIds ids)
     {
-        string? description = link.FirstChild is LiteralInline literal ? literal.Content.ToString() : null;
+        string? description = GetText(link);
         byte[]? content = null;
         string? mediaType = null;
         Uri? source = null;
@@ -198,6 +201,40 @@ internal static class MarkdownParser
         }
 
         return new DocumentImage(ids.Next(), content, mediaType, source, description);
+    }
+
+    private static bool IsDescendantOf(Inline inline, ContainerInline ancestor)
+    {
+        for (ContainerInline? current = inline.Parent; current is not null; current = current.Parent)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsEmptyTableRow(TableRow row)
+    {
+        foreach (TableCell cell in row)
+        {
+            foreach (Block block in cell)
+            {
+                if (block is LeafBlock { Inline: not null } leaf && !string.IsNullOrWhiteSpace(GetText(leaf.Inline)))
+                {
+                    return false;
+                }
+
+                if (block is CodeBlock code && !string.IsNullOrWhiteSpace(code.Lines.ToString()))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private static string GetText(ContainerInline? container)

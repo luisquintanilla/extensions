@@ -17,13 +17,23 @@ public abstract class DocumentNode
         IEnumerable<DocumentPageReference>? pageReferences = null,
         IEnumerable<DocumentNodeId>? sourceNodeIds = null)
     {
+        if (id == default)
+        {
+            throw new ArgumentException("A node identifier cannot be empty.", nameof(id));
+        }
+
         Id = id;
         PageReferences = CopyDistinct(pageReferences, static reference => reference.PageNumber);
         SourceNodeIds = CopyDistinct(sourceNodeIds ?? new[] { id }, static sourceId => sourceId);
 
-        if (SourceNodeIds.Count == 0)
+        if (PageReferences.Any(static reference => reference.PageNumber <= 0))
         {
-            throw new ArgumentException("A node must retain at least one source node identifier.", nameof(sourceNodeIds));
+            throw new ArgumentException("Page references must be positive and one-based.", nameof(pageReferences));
+        }
+
+        if (SourceNodeIds.Count == 0 || SourceNodeIds.Any(static sourceId => sourceId == default))
+        {
+            throw new ArgumentException("A node must retain at least one non-empty source node identifier.", nameof(sourceNodeIds));
         }
     }
 

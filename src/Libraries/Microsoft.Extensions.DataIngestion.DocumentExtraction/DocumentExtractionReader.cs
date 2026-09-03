@@ -25,7 +25,7 @@ public sealed class DocumentExtractionReader : IngestionDocumentReader
     public DocumentExtractionReader(IDocumentExtractionClient client, DocumentExtractionOptions? options = null)
     {
         _client = Throw.IfNull(client);
-        _options = options;
+        _options = options?.Clone();
     }
 
     /// <inheritdoc/>
@@ -40,7 +40,7 @@ public sealed class DocumentExtractionReader : IngestionDocumentReader
         _ = Throw.IfNullOrEmpty(mediaType);
 
         DocumentExtractionResult result = await _client
-            .ExtractAsync(source, mediaType, _options, cancellationToken)
+            .ExtractAsync(source, mediaType, _options?.Clone(), cancellationToken)
             .ConfigureAwait(false);
 
         return new IngestionDocument(identifier, result.Document);

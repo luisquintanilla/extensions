@@ -61,4 +61,31 @@ public class MarkdownReaderTests
         await Assert.ThrowsAsync<NotSupportedException>(() =>
             new MarkdownReader().ReadAsync(source, "mixed", "text/markdown"));
     }
+
+    [Fact]
+    public async Task SupportsFormattedImageDescriptions()
+    {
+        using MemoryStream source = new(Encoding.UTF8.GetBytes("![*formatted chart*](chart.png)"));
+
+        IngestionDocument result = await new MarkdownReader().ReadAsync(source, "image", "text/markdown");
+
+        Assert.Equal("formatted chart", Assert.Single(result.Document.Nodes.OfType<DocumentImage>()).Description);
+    }
+
+    [Fact]
+    public async Task SkipsMarkItDownStyleBlankHeaderRow()
+    {
+        const string Markdown = """
+            |  |  |
+            | --- | --- |
+            | A | B |
+            """;
+        using MemoryStream source = new(Encoding.UTF8.GetBytes(Markdown));
+
+        IngestionDocument result = await new MarkdownReader().ReadAsync(source, "table", "text/markdown");
+        DocumentTable table = Assert.Single(result.Document.Nodes.OfType<DocumentTable>());
+
+        Assert.Equal(1, table.RowCount);
+        Assert.Equal("A\tB", DocumentTextProjection.GetText(table));
+    }
 }

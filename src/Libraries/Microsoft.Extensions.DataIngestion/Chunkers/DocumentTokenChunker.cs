@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -47,7 +48,7 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
 
             int stringBuilderTokenCount = 0;
             StringBuilder stringBuilder = new();
-            List<DocumentNode> sourceNodes = [];
+            List<(DocumentNode Node, int Start, int End)> sourceSegments = [];
             foreach (DocumentNode element in document.Document.EnumerateContent())
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -57,7 +58,6 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                     continue;
                 }
 
-                sourceNodes.Add(element);
                 int contentToProcessTokenCount = _tokenizer.CountTokens(elementContent!, considerNormalization: false);
                 ReadOnlyMemory<char> contentToProcess = elementContent.AsMemory();
                 while (stringBuilderTokenCount + contentToProcessTokenCount >= _maxTokensPerChunk)
@@ -73,16 +73,20 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                     {
                         fixed (char* ptr = &MemoryMarshal.GetReference(contentToProcess.Span))
                         {
+                            int start = stringBuilder.Length;
                             _ = stringBuilder.Append(ptr, index);
+                            sourceSegments.Add((element, start, stringBuilder.Length));
                         }
                     }
-                    yield return FinalizeChunk(element);
+                    yield return FinalizeChunk();
 
                     contentToProcess = contentToProcess.Slice(index);
                     contentToProcessTokenCount = _tokenizer.CountTokens(contentToProcess.Span, considerNormalization: false);
                 }
 
+                int remainderStart = stringBuilder.Length;
                 _ = stringBuilder.Append(contentToProcess);
+                sourceSegments.Add((element, remainderStart, stringBuilder.Length));
                 stringBuilderTokenCount += contentToProcessTokenCount;
             }
 
@@ -92,8 +96,9 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
             }
             yield break;
 
-            IngestionChunk<string> FinalizeChunk(DocumentNode? continuingNode = null)
+            IngestionChunk<string> FinalizeChunk()
             {
+                DocumentNode[] sourceNodes = sourceSegments.Select(static segment => segment.Node).Distinct().ToArray();
                 IngestionChunk<string> chunk = new IngestionChunk<string>(
                     content: stringBuilder.ToString(),
                     document: document,
@@ -102,11 +107,6 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                     pageNumbers: sourceNodes.GetPageNumbers());
                 _ = stringBuilder.Clear();
                 stringBuilderTokenCount = 0;
-                sourceNodes.Clear();
-                if (continuingNode is not null)
-                {
-                    sourceNodes.Add(continuingNode);
-                }
 
                 if (_chunkOverlap > 0)
                 {
@@ -118,6 +118,13 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                         considerNormalization: false);
 
                     ReadOnlySpan<char> overlapContent = chunk.Content.AsSpan().Slice(index);
+                    sourceSegments = sourceSegments
+                        .Where(segment => segment.End > index)
+                        .Select(segment => (
+                            segment.Node,
+                            Start: Math.Max(0, segment.Start - index),
+                            End: segment.End - index))
+                        .ToList();
                     unsafe
                     {
                         fixed (char* ptr = &MemoryMarshal.GetReference(overlapContent))
@@ -125,6 +132,10 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                             _ = stringBuilder.Append(ptr, overlapContent.Length);
                         }
                     }
+                }
+                else
+                {
+                    sourceSegments.Clear();
                 }
 
                 return chunk;

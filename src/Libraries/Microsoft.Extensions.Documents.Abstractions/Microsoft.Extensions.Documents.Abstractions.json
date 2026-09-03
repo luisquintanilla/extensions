@@ -242,11 +242,11 @@
       ]
     },
     {
-      "Type": "sealed class Microsoft.Extensions.Documents.DocumentTableCell",
+      "Type": "sealed class Microsoft.Extensions.Documents.DocumentTableCell : Microsoft.Extensions.Documents.DocumentNode",
       "Stage": "Stable",
       "Methods": [
         {
-          "Member": "Microsoft.Extensions.Documents.DocumentTableCell.DocumentTableCell(int rowIndex, int columnIndex, System.Collections.Generic.IEnumerable<Microsoft.Extensions.Documents.DocumentNode> content, int rowSpan = 1, int columnSpan = 1, Microsoft.Extensions.Documents.DocumentTableCellRole role = Microsoft.Extensions.Documents.DocumentTableCellRole.Content);",
+          "Member": "Microsoft.Extensions.Documents.DocumentTableCell.DocumentTableCell(Microsoft.Extensions.Documents.DocumentNodeId id, int rowIndex, int columnIndex, System.Collections.Generic.IEnumerable<Microsoft.Extensions.Documents.DocumentNode> content, int rowSpan = 1, int columnSpan = 1, Microsoft.Extensions.Documents.DocumentTableCellRole role = Microsoft.Extensions.Documents.DocumentTableCellRole.Content, System.Collections.Generic.IEnumerable<Microsoft.Extensions.Documents.DocumentPageReference>? pageReferences = null, System.Collections.Generic.IEnumerable<Microsoft.Extensions.Documents.DocumentNodeId>? sourceNodeIds = null);",
           "Stage": "Stable"
         }
       ],
