@@ -36,7 +36,7 @@ public class OpenTelemetryDocumentExtractionClientTests
             ExtractAsyncCallback = async (document, mediaType, options, cancellationToken) =>
             {
                 await Task.Yield();
-                return new DocumentExtractionResult([new DocumentPage(1, [new DocumentBlock("This is the recognized text.")])]);
+                return new DocumentExtractionResult([TestDocument.Page(1, "This is the recognized text.")]);
             },
 
             GetServiceCallback = (serviceType, serviceKey) =>
@@ -117,11 +117,11 @@ public class OpenTelemetryDocumentExtractionClientTests
         static async IAsyncEnumerable<DocumentExtractionPageResult> YieldPagesAsync()
         {
             await Task.Yield();
-            yield return new(new DocumentPage(1, [new DocumentBlock("one")]))
+            yield return new(TestDocument.Page(1, "one"))
             {
                 AdditionalProperties = new() { ["property.a"] = "first" },
             };
-            yield return new(new DocumentPage(2, [new DocumentBlock("two")]))
+            yield return new(TestDocument.Page(2, "two"))
             {
                 AdditionalProperties = new() { ["property.b"] = "second" },
             };

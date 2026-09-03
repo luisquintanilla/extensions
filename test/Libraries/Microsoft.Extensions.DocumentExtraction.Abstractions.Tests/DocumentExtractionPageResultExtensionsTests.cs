@@ -27,8 +27,8 @@ public class DocumentExtractionPageResultExtensionsTests
     {
         DocumentExtractionPageResult[] updates =
         [
-            new(new DocumentPage(2, [new DocumentBlock("page two")])) { TotalPages = 2 },
-            new(new DocumentPage(1, [new DocumentBlock("page one")], "# page one")) { TotalPages = 2 },
+            new(TestDocument.Page(2, "page two")) { TotalPages = 2 },
+            new(TestDocument.Page(1, "page one", "# page one")) { TotalPages = 2 },
         ];
 
         DocumentExtractionResult result = updates.ToDocumentExtractionResult();
@@ -44,8 +44,8 @@ public class DocumentExtractionPageResultExtensionsTests
     {
         DocumentExtractionPageResult[] updates =
         [
-            new(new DocumentPage(2, [new DocumentBlock("page two")], "## page two")),
-            new(new DocumentPage(1, [new DocumentBlock("page one")])),
+            new(TestDocument.Page(2, "page two", "## page two")),
+            new(TestDocument.Page(1, "page one")),
         ];
 
         DocumentExtractionResult result = await YieldAsync(updates).ToDocumentExtractionResultAsync();
@@ -60,8 +60,8 @@ public class DocumentExtractionPageResultExtensionsTests
     {
         DocumentExtractionPageResult[] updates =
         [
-            new(new DocumentPage(1, [new DocumentBlock("page one")])) { AdditionalProperties = new() { ["a"] = "1" } },
-            new(new DocumentPage(2, [new DocumentBlock("page two")])) { AdditionalProperties = new() { ["b"] = "2" } },
+            new(TestDocument.Page(1, "page one")) { AdditionalProperties = new() { ["a"] = "1" } },
+            new(TestDocument.Page(2, "page two")) { AdditionalProperties = new() { ["b"] = "2" } },
         ];
 
         DocumentExtractionResult result = updates.ToDocumentExtractionResult();
@@ -76,9 +76,9 @@ public class DocumentExtractionPageResultExtensionsTests
     {
         DocumentExtractionPageResult[] updates =
         [
-            new(new DocumentPage(1, [new DocumentBlock("page one")]) { CoordinateUnit = DocumentCoordinateUnit.Pixel, CoordinateOrigin = DocumentCoordinateOrigin.TopLeft }),
-            new(new DocumentPage(2, [new DocumentBlock("page two")])),
-            new(new DocumentPage(3, [new DocumentBlock("page three")]) { CoordinateUnit = DocumentCoordinateUnit.Point, CoordinateOrigin = DocumentCoordinateOrigin.BottomLeft }),
+            new(new DocumentPage(1, TestDocument.Create("page one", 1)) { CoordinateUnit = DocumentCoordinateUnit.Pixel, CoordinateOrigin = DocumentCoordinateOrigin.TopLeft }),
+            new(TestDocument.Page(2, "page two")),
+            new(new DocumentPage(3, TestDocument.Create("page three", 3)) { CoordinateUnit = DocumentCoordinateUnit.Point, CoordinateOrigin = DocumentCoordinateOrigin.BottomLeft }),
         ];
 
         DocumentExtractionResult result = updates.ToDocumentExtractionResult();
@@ -110,8 +110,8 @@ public class DocumentExtractionPageResultExtensionsTests
 
         DocumentExtractionPageResult[] updates =
         [
-            new(new DocumentPage(1, [new DocumentBlock("page one")]) { RawRepresentation = rawPageOne }),
-            new(new DocumentPage(2, [new DocumentBlock("page two")]) { RawRepresentation = rawPageTwo }),
+            new(new DocumentPage(1, TestDocument.Create("page one", 1)) { RawRepresentation = rawPageOne }),
+            new(new DocumentPage(2, TestDocument.Create("page two", 2)) { RawRepresentation = rawPageTwo }),
         ];
 
         DocumentExtractionResult result = updates.ToDocumentExtractionResult();

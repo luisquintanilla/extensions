@@ -4,7 +4,7 @@
 
 ## The packages
 
-The [Microsoft.Extensions.DocumentExtraction.Abstractions](https://www.nuget.org/packages/Microsoft.Extensions.DocumentExtraction.Abstractions) package provides the core exchange types, including [`IDocumentExtractionClient`](https://learn.microsoft.com/dotnet/api/microsoft.extensions.documentextraction.idocumentextractionclient), [`DocumentExtractionResult`](https://learn.microsoft.com/dotnet/api/microsoft.extensions.documentextraction.documentextractionresult), [`DocumentPage`](https://learn.microsoft.com/dotnet/api/microsoft.extensions.documentextraction.documentpage), and the reading-order [`DocumentElement`](https://learn.microsoft.com/dotnet/api/microsoft.extensions.documentextraction.documentelement) model (blocks, tables, and images with bounding regions and confidence). Any .NET library that provides a document-extraction engine can implement these abstractions to enable seamless integration with consuming code.
+The [Microsoft.Extensions.DocumentExtraction.Abstractions](https://www.nuget.org/packages/Microsoft.Extensions.DocumentExtraction.Abstractions) package provides extraction operations and envelopes, including `IDocumentExtractionClient`, `DocumentExtractionResult`, and `DocumentPage`. Canonical semantic content comes from `Microsoft.Extensions.Documents.Abstractions`; extraction-specific geometry, confidence, and provider facts remain in `DocumentExtractionEvidence` sidecars keyed by stable semantic node IDs.
 
 The [Microsoft.Extensions.DocumentExtraction](https://www.nuget.org/packages/Microsoft.Extensions.DocumentExtraction) package has an implicit dependency on the `Microsoft.Extensions.DocumentExtraction.Abstractions` package. This package enables you to easily integrate components such as logging, telemetry, and options configuration into your applications using familiar dependency injection and builder patterns.
 
@@ -16,9 +16,11 @@ To also have access to higher-level utilities for working with document-extracti
 
 ## Content contract
 
-`DocumentPage.Elements` is the canonical semantic content in provider reading order. `DocumentPage.Text` is a deterministic plain-text projection of those elements: blocks contribute literal text, table cells recurse in row/column order, and image captions contribute once. Text-bearing page elements are separated by blank lines; table columns use tabs and rows use newlines. Binary images and provider-formatted Markdown do not implicitly become text.
+`DocumentPage.Document` is the canonical semantic fragment in provider reading order. `DocumentPage.Text` and `DocumentExtractionResult.Text` use the one deterministic projection defined by the shared document package. Binary images and provider-formatted Markdown do not implicitly become text.
 
-`DocumentPage.Markdown` is nullable and preserves an exact provider-supplied page rendering. The libraries do not synthesize it or parse it back into elements. `DocumentExtractionResult` intentionally has no Markdown aggregation because page fragments are not necessarily a complete provider-supplied document rendering; its `Text` is derived from page text with fixed page boundaries.
+`DocumentPage.Markdown` is nullable and preserves an exact provider-supplied page rendering. The libraries do not synthesize it or parse it back into semantic nodes. `DocumentExtractionResult` intentionally has no Markdown aggregation because page fragments are not necessarily a complete provider-supplied document rendering.
+
+Streaming page fragments are sorted by page number and merged by concatenating their root nodes. Node IDs must be unique across fragments. The merge never invents cross-page logical containers; physical provenance remains typed `DocumentPageReference` annotations on shared nodes.
 
 ## Install the package
 

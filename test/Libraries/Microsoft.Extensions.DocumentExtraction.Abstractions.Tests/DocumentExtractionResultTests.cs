@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using Microsoft.Extensions.Documents;
 using Xunit;
 
 namespace Microsoft.Extensions.DocumentExtraction;
@@ -15,15 +16,16 @@ public class DocumentExtractionResultTests
     }
 
     [Fact]
-    public void Text_JoinsPerPageText()
+    public void ResultMergesPageFragmentsIntoCanonicalDocument()
     {
-        var result = new DocumentExtractionResult(
+        DocumentExtractionResult result = new(
         [
-            new DocumentPage(1, [new DocumentBlock("page one")]),
-            new DocumentPage(2, [new DocumentBlock("page two")]),
+            TestDocument.Page(1, "page one"),
+            TestDocument.Page(2, "page two"),
         ]);
 
         Assert.Equal("page one\n\npage two", result.Text);
+        Assert.Equal(result.Text, result.Document.Text);
         Assert.Equal(2, result.Pages.Count);
     }
 
@@ -31,8 +33,8 @@ public class DocumentExtractionResultTests
     public void PageMarkdown_IsNullableAndPreservedExactlyWithoutBecomingText()
     {
         const string Markdown = " \n# Provider heading\r\n\r\n*exact*  \n";
-        DocumentPage pageWithoutMarkdown = new(1, []);
-        DocumentPage markdownOnlyPage = new(2, [], Markdown);
+        DocumentPage pageWithoutMarkdown = TestDocument.EmptyPage(1);
+        DocumentPage markdownOnlyPage = new(2, new Document([]), Markdown);
 
         Assert.Null(pageWithoutMarkdown.Markdown);
         Assert.Equal(Markdown, markdownOnlyPage.Markdown);
@@ -40,109 +42,37 @@ public class DocumentExtractionResultTests
     }
 
     [Fact]
-    public void PageText_RecursesInReadingOrderWithDeterministicTableSeparators()
-    {
-        DocumentTableCell spanningCell = new(
-            0,
-            0,
-            [new DocumentBlock("A"), new DocumentImage { Caption = "caption" }])
-        {
-            RowSpan = 2,
-            ColumnSpan = 2,
-        };
-        DocumentTableCell nestedCell = new(
-            0,
-            2,
-            [
-                new DocumentTable(
-                    1,
-                    1,
-                    [new DocumentTableCell(0, 0, [new DocumentBlock("B")])]),
-            ]);
-        DocumentTableCell finalCell = new(1, 2, [new DocumentBlock("C")]);
-        DocumentTable table = new(
-            2,
-            3,
-            [finalCell, nestedCell, spanningCell],
-            markdownRepresentation: "| ignored provider rendering |");
-        DocumentPage page = new(
-            1,
-            [
-                new DocumentBlock("Intro"),
-                table,
-                new DocumentImage { Content = new byte[] { 1, 2, 3 }, MediaType = "image/png" },
-                new DocumentBlock("Outro"),
-            ]);
-
-        Assert.Equal("Intro\n\nA\n\ncaption\t\tB\n\t\tC\n\nOutro", page.Text);
-    }
-
-    [Fact]
-    public void PageText_UsesOnlyTextBearingStructuredContent()
-    {
-        DocumentPage page = new(
-            1,
-            [
-                new DocumentImage { Content = new byte[] { 1 }, MediaType = "image/png" },
-                new DocumentTable(0, 0, cells: null, markdownRepresentation: "| markdown only |"),
-                new DocumentTable(1, 1, [new DocumentTableCell(0, 0, [])]),
-            ],
-            markdown: "provider page markdown");
-
-        Assert.Equal(string.Empty, page.Text);
-    }
-
-    [Fact]
-    public void TableText_PreservesEmptyCellColumnPosition()
-    {
-        DocumentPage page = new(
-            1,
-            [
-                new DocumentTable(
-                    1,
-                    3,
-                    [
-                        new DocumentTableCell(0, 0, [new DocumentBlock("A")]),
-                        new DocumentTableCell(0, 1, []),
-                        new DocumentTableCell(0, 2, [new DocumentBlock("C")]),
-                    ]),
-            ]);
-
-        Assert.Equal("A\t\tC", page.Text);
-    }
-
-    [Fact]
-    public void ResultText_PreservesPageBoundariesWithoutAggregatingMarkdown()
+    public void ResultDoesNotAggregateProviderMarkdown()
     {
         DocumentExtractionResult result = new(
         [
-            new DocumentPage(1, [new DocumentBlock("one")], "# one"),
-            new DocumentPage(2, [], "# two"),
-            new DocumentPage(3, [new DocumentBlock("three")], "# three"),
+            new DocumentPage(1, TestDocument.Create("one", 1), "# one"),
+            new DocumentPage(2, new Document([]), "# two"),
+            new DocumentPage(3, TestDocument.Create("three", 3), "# three"),
         ]);
 
-        Assert.Equal("one\n\n\n\nthree", result.Text);
+        Assert.Equal("one\n\nthree", result.Text);
         Assert.Null(typeof(DocumentExtractionResult).GetProperty("Markdown"));
     }
 
     [Fact]
-    public void ApiShape_HasSingleStructuredTextAuthorityAndBclImageContent()
+    public void StreamingMergeRejectsDuplicateNodeIds()
     {
-        Assert.False(typeof(DocumentPage).GetProperty(nameof(DocumentPage.Elements))!.CanWrite);
-        Assert.False(typeof(DocumentPage).GetProperty(nameof(DocumentPage.Text))!.CanWrite);
-        Assert.False(typeof(DocumentPage).GetProperty(nameof(DocumentPage.Markdown))!.CanWrite);
-        Assert.Null(typeof(DocumentTableCell).GetProperty("Content"));
-        Assert.Null(typeof(DocumentExtractionResult).GetProperty("Usage"));
-        Assert.Null(typeof(DocumentExtractionPageResult).GetProperty("Usage"));
-        Assert.Null(typeof(DocumentExtractionPageResult).GetProperty("PagesProcessed"));
-        Assert.Equal(typeof(ReadOnlyMemory<byte>?), typeof(DocumentImage).GetProperty(nameof(DocumentImage.Content))!.PropertyType);
-        Assert.Equal(typeof(string), typeof(DocumentImage).GetProperty(nameof(DocumentImage.MediaType))!.PropertyType);
+        DocumentPage first = new(1, new Document([new DocumentText(new("same"), "one")]));
+        DocumentPage second = new(2, new Document([new DocumentText(new("same"), "two")]));
+
+        Assert.Throws<ArgumentException>("children", () => new DocumentExtractionResult([first, second]));
     }
 
     [Fact]
-    public void StructuredConstructors_RejectNullElements()
+    public void ApiShapeHasSingleSemanticAuthority()
     {
-        Assert.Throws<ArgumentNullException>("elements", () => new DocumentPage(1, null!));
-        Assert.Throws<ArgumentNullException>("elements", () => new DocumentTableCell(0, 0, null!));
+        Assert.False(typeof(DocumentPage).GetProperty(nameof(DocumentPage.Document))!.CanWrite);
+        Assert.False(typeof(DocumentPage).GetProperty(nameof(DocumentPage.Text))!.CanWrite);
+        Assert.False(typeof(DocumentPage).GetProperty(nameof(DocumentPage.Markdown))!.CanWrite);
+        Assert.False(typeof(DocumentExtractionResult).GetProperty(nameof(DocumentExtractionResult.Document))!.CanWrite);
+        Assert.Null(typeof(DocumentExtractionResult).GetProperty("Usage"));
+        Assert.Null(typeof(DocumentExtractionPageResult).GetProperty("Usage"));
+        Assert.Null(typeof(DocumentExtractionPageResult).GetProperty("PagesProcessed"));
     }
 }
