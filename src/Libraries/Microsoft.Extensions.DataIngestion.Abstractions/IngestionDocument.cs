@@ -1,68 +1,40 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
 using System.Collections.Generic;
+using Microsoft.Extensions.Documents;
 using Microsoft.Shared.Diagnostics;
 
 namespace Microsoft.Extensions.DataIngestion;
 
-/// <summary>
-/// A format-agnostic container that normalizes diverse input formats into a structured hierarchy.
-/// </summary>
+/// <summary>Adds ingestion identity and context to a shared semantic <see cref="Documents.Document"/>.</summary>
+/// <remarks>
+/// This is intentionally a thin MEDI-owned context wrapper. Semantic content is represented only by
+/// <see cref="Documents.Document"/>; MEDI does not define a second document-element hierarchy.
+/// </remarks>
 public sealed class IngestionDocument
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="IngestionDocument"/> class.
-    /// </summary>
-    /// <param name="identifier">The unique identifier for the document.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="identifier"/> is <see langword="null"/>.</exception>
-    public IngestionDocument(string identifier)
+    private Dictionary<string, object?>? _metadata;
+
+    /// <summary>Initializes a new instance of the <see cref="IngestionDocument"/> class.</summary>
+    /// <param name="identifier">The unique ingestion identifier.</param>
+    /// <param name="document">The shared semantic document.</param>
+    public IngestionDocument(string identifier, Document document)
     {
         Identifier = Throw.IfNullOrEmpty(identifier);
+        Document = Throw.IfNull(document);
     }
 
-    /// <summary>
-    /// Gets the unique identifier for the document.
-    /// </summary>
+    /// <summary>Gets the unique ingestion identifier.</summary>
     public string Identifier { get; }
 
-    /// <summary>
-    /// Gets the sections of the document.
-    /// </summary>
-    public IList<IngestionDocumentSection> Sections { get; } = [];
+    /// <summary>Gets the canonical shared semantic document.</summary>
+    public Document Document { get; }
 
-    /// <summary>
-    /// Iterate over all elements in the document, including those in nested sections.
-    /// </summary>
-    /// <returns>An enumerable collection of elements.</returns>
-    /// <remarks>
-    /// Sections themselves are not included.
-    /// </remarks>
-    public IEnumerable<IngestionDocumentElement> EnumerateContent()
-    {
-        Stack<IngestionDocumentElement> elementsToProcess = new();
+    /// <summary>Gets a value indicating whether ingestion context metadata has been added.</summary>
+    public bool HasMetadata => _metadata?.Count > 0;
 
-        for (int sectionIndex = Sections.Count - 1; sectionIndex >= 0; sectionIndex--)
-        {
-            elementsToProcess.Push(Sections[sectionIndex]);
-        }
-
-        while (elementsToProcess.Count > 0)
-        {
-            IngestionDocumentElement currentElement = elementsToProcess.Pop();
-
-            if (currentElement is not IngestionDocumentSection nestedSection)
-            {
-                yield return currentElement;
-            }
-            else
-            {
-                for (int i = nestedSection.Elements.Count - 1; i >= 0; i--)
-                {
-                    elementsToProcess.Push(nestedSection.Elements[i]);
-                }
-            }
-        }
-    }
+    /// <summary>Gets mutable ingestion-only context metadata.</summary>
+    public IDictionary<string, object?> Metadata => _metadata ??= [];
 }

@@ -1,11 +1,14 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Documents;
 using Microsoft.Shared.DiagnosticIds;
 using Microsoft.Shared.Diagnostics;
 
@@ -26,18 +29,43 @@ public class DocumentExtractionResult
     /// <exception cref="System.ArgumentNullException"><paramref name="pages"/> is <see langword="null"/>.</exception>
     public DocumentExtractionResult(IReadOnlyList<DocumentPage> pages)
     {
-        Pages = Throw.IfNull(pages);
+        DocumentPage[] orderedPages = Throw.IfNull(pages).ToArray();
+        if (Array.Exists(orderedPages, static page => page is null))
+        {
+            Throw.ArgumentException(nameof(pages), "Pages cannot contain null entries.");
+        }
+
+        Array.Sort(orderedPages, static (left, right) => left.PageNumber.CompareTo(right.PageNumber));
+        for (int index = 1; index < orderedPages.Length; index++)
+        {
+            if (orderedPages[index - 1].PageNumber == orderedPages[index].PageNumber)
+            {
+                Throw.ArgumentException(nameof(pages), $"Page number {orderedPages[index].PageNumber} is duplicated.");
+            }
+        }
+
+        Pages = new ReadOnlyCollection<DocumentPage>(orderedPages);
+        Document = new(Pages.SelectMany(static page => page.Document.Children).ToArray());
     }
 
     /// <summary>Gets the per-page structured content (text, tables, blocks).</summary>
     public IReadOnlyList<DocumentPage> Pages { get; }
 
-    /// <summary>Gets the full-document text, formed deterministically by joining the derived per-page text.</summary>
+    /// <summary>Gets the merged canonical semantic document.</summary>
+    /// <remarks>
+    /// For a materialized extraction this is formed by concatenating page-fragment roots in page order. Stable node
+    /// identifiers must therefore be unique across all fragments. This deterministic merge does not infer a logical
+    /// container spanning pages; providers that have a complete logical hierarchy should return it as page references
+    /// on nodes rather than physical page containers.
+    /// </remarks>
+    public Document Document { get; }
+
+    /// <summary>Gets the full-document text projected from <see cref="Document"/>.</summary>
     /// <remarks>
     /// This type intentionally does not aggregate page <see cref="DocumentPage.Markdown"/> fragments. Such fragments
     /// are not necessarily a complete provider-supplied document rendering.
     /// </remarks>
-    public string Text => string.Join("\n\n", Pages.Select(p => p.Text));
+    public string Text => Document.Text;
 
     /// <summary>Gets or sets the provider-native object underlying this result.</summary>
     /// <remarks>

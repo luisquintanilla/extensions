@@ -38,100 +38,6 @@
       ]
     },
     {
-      "Type": "class Microsoft.Extensions.DocumentExtraction.DocumentBlock : Microsoft.Extensions.DocumentExtraction.DocumentElement",
-      "Stage": "Experimental",
-      "Methods": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentBlock.DocumentBlock(string text);",
-          "Stage": "Experimental"
-        }
-      ],
-      "Properties": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentBlockKind? Microsoft.Extensions.DocumentExtraction.DocumentBlock.Kind { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "string Microsoft.Extensions.DocumentExtraction.DocumentBlock.Text { get; }",
-          "Stage": "Experimental"
-        }
-      ]
-    },
-    {
-      "Type": "readonly struct Microsoft.Extensions.DocumentExtraction.DocumentBlockKind : System.IEquatable<Microsoft.Extensions.DocumentExtraction.DocumentBlockKind>",
-      "Stage": "Experimental",
-      "Methods": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.DocumentBlockKind(string value);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.DocumentBlockKind();",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "override bool Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Equals(object? obj);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "bool Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Equals(Microsoft.Extensions.DocumentExtraction.DocumentBlockKind other);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "override int Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.GetHashCode();",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "static bool Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.operator ==(Microsoft.Extensions.DocumentExtraction.DocumentBlockKind left, Microsoft.Extensions.DocumentExtraction.DocumentBlockKind right);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "static bool Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.operator !=(Microsoft.Extensions.DocumentExtraction.DocumentBlockKind left, Microsoft.Extensions.DocumentExtraction.DocumentBlockKind right);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "override string Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.ToString();",
-          "Stage": "Experimental"
-        }
-      ],
-      "Properties": [
-        {
-          "Member": "static Microsoft.Extensions.DocumentExtraction.DocumentBlockKind Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Figure { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "static Microsoft.Extensions.DocumentExtraction.DocumentBlockKind Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Paragraph { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "static Microsoft.Extensions.DocumentExtraction.DocumentBlockKind Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Title { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "string Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Value { get; }",
-          "Stage": "Experimental"
-        }
-      ]
-    },
-    {
-      "Type": "sealed class Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Converter",
-      "Stage": "Experimental",
-      "Methods": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Converter.Converter();",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "override Microsoft.Extensions.DocumentExtraction.DocumentBlockKind Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Converter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type typeToConvert, System.Text.Json.JsonSerializerOptions options);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "override void Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Converter.Write(System.Text.Json.Utf8JsonWriter writer, Microsoft.Extensions.DocumentExtraction.DocumentBlockKind value, System.Text.Json.JsonSerializerOptions options);",
-          "Stage": "Experimental"
-        }
-      ]
-    },
-    {
       "Type": "readonly class Microsoft.Extensions.DocumentExtraction.DocumentBoundingBox(float Left, float Top, float Right, float Bottom)",
       "Stage": "Experimental",
       "Methods": [
@@ -274,34 +180,6 @@
       ]
     },
     {
-      "Type": "abstract class Microsoft.Extensions.DocumentExtraction.DocumentElement",
-      "Stage": "Experimental",
-      "Methods": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentElement.DocumentElement();",
-          "Stage": "Experimental"
-        }
-      ],
-      "Properties": [
-        {
-          "Member": "Microsoft.Extensions.AI.AdditionalPropertiesDictionary? Microsoft.Extensions.DocumentExtraction.DocumentElement.AdditionalProperties { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentBoundingRegion? Microsoft.Extensions.DocumentExtraction.DocumentElement.BoundingRegion { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "double? Microsoft.Extensions.DocumentExtraction.DocumentElement.Confidence { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "object? Microsoft.Extensions.DocumentExtraction.DocumentElement.RawRepresentation { get; set; }",
-          "Stage": "Experimental"
-        }
-      ]
-    },
-    {
       "Type": "static class Microsoft.Extensions.DocumentExtraction.DocumentExtractionClientExtensions",
       "Stage": "Experimental",
       "Methods": [
@@ -351,6 +229,38 @@
         },
         {
           "Member": "System.Uri? Microsoft.Extensions.DocumentExtraction.DocumentExtractionClientMetadata.ProviderUri { get; }",
+          "Stage": "Experimental"
+        }
+      ]
+    },
+    {
+      "Type": "sealed class Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence",
+      "Stage": "Experimental",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence.DocumentExtractionEvidence(Microsoft.Extensions.Documents.DocumentNodeId nodeId);",
+          "Stage": "Experimental"
+        }
+      ],
+      "Properties": [
+        {
+          "Member": "Microsoft.Extensions.AI.AdditionalPropertiesDictionary? Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence.AdditionalProperties { get; set; }",
+          "Stage": "Experimental"
+        },
+        {
+          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentBoundingRegion? Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence.BoundingRegion { get; set; }",
+          "Stage": "Experimental"
+        },
+        {
+          "Member": "double? Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence.Confidence { get; set; }",
+          "Stage": "Experimental"
+        },
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentNodeId Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence.NodeId { get; }",
+          "Stage": "Experimental"
+        },
+        {
+          "Member": "object? Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence.RawRepresentation { get; set; }",
           "Stage": "Experimental"
         }
       ]
@@ -436,6 +346,10 @@
           "Stage": "Experimental"
         },
         {
+          "Member": "Microsoft.Extensions.Documents.Document Microsoft.Extensions.DocumentExtraction.DocumentExtractionResult.Document { get; }",
+          "Stage": "Experimental"
+        },
+        {
           "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentPage> Microsoft.Extensions.DocumentExtraction.DocumentExtractionResult.Pages { get; }",
           "Stage": "Experimental"
         },
@@ -450,35 +364,11 @@
       ]
     },
     {
-      "Type": "class Microsoft.Extensions.DocumentExtraction.DocumentImage : Microsoft.Extensions.DocumentExtraction.DocumentElement",
-      "Stage": "Experimental",
-      "Methods": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentImage.DocumentImage();",
-          "Stage": "Experimental"
-        }
-      ],
-      "Properties": [
-        {
-          "Member": "string? Microsoft.Extensions.DocumentExtraction.DocumentImage.Caption { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "System.ReadOnlyMemory<byte>? Microsoft.Extensions.DocumentExtraction.DocumentImage.Content { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "string? Microsoft.Extensions.DocumentExtraction.DocumentImage.MediaType { get; set; }",
-          "Stage": "Experimental"
-        }
-      ]
-    },
-    {
       "Type": "class Microsoft.Extensions.DocumentExtraction.DocumentPage",
       "Stage": "Experimental",
       "Methods": [
         {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentPage.DocumentPage(int pageNumber, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentElement> elements, string? markdown = null);",
+          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentPage.DocumentPage(int pageNumber, Microsoft.Extensions.Documents.Document document, string? markdown = null, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence>? evidence = null);",
           "Stage": "Experimental"
         }
       ],
@@ -500,7 +390,11 @@
           "Stage": "Experimental"
         },
         {
-          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentElement> Microsoft.Extensions.DocumentExtraction.DocumentPage.Elements { get; }",
+          "Member": "Microsoft.Extensions.Documents.Document Microsoft.Extensions.DocumentExtraction.DocumentPage.Document { get; }",
+          "Stage": "Experimental"
+        },
+        {
+          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence> Microsoft.Extensions.DocumentExtraction.DocumentPage.Evidence { get; }",
           "Stage": "Experimental"
         },
         {
@@ -621,164 +515,6 @@
         },
         {
           "Member": "float Microsoft.Extensions.DocumentExtraction.DocumentPoint.Y { get; init; }",
-          "Stage": "Experimental"
-        }
-      ]
-    },
-    {
-      "Type": "class Microsoft.Extensions.DocumentExtraction.DocumentTable : Microsoft.Extensions.DocumentExtraction.DocumentElement",
-      "Stage": "Experimental",
-      "Methods": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentTable.DocumentTable(int rowCount, int columnCount, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentTableCell>? cells = null, string? markdownRepresentation = null);",
-          "Stage": "Experimental"
-        }
-      ],
-      "Properties": [
-        {
-          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentTableCell>? Microsoft.Extensions.DocumentExtraction.DocumentTable.Cells { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "int Microsoft.Extensions.DocumentExtraction.DocumentTable.ColumnCount { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "string? Microsoft.Extensions.DocumentExtraction.DocumentTable.MarkdownRepresentation { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "int Microsoft.Extensions.DocumentExtraction.DocumentTable.RowCount { get; }",
-          "Stage": "Experimental"
-        }
-      ]
-    },
-    {
-      "Type": "class Microsoft.Extensions.DocumentExtraction.DocumentTableCell",
-      "Stage": "Experimental",
-      "Methods": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentTableCell.DocumentTableCell(int rowIndex, int columnIndex, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentElement> elements);",
-          "Stage": "Experimental"
-        }
-      ],
-      "Properties": [
-        {
-          "Member": "Microsoft.Extensions.AI.AdditionalPropertiesDictionary? Microsoft.Extensions.DocumentExtraction.DocumentTableCell.AdditionalProperties { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentBoundingRegion? Microsoft.Extensions.DocumentExtraction.DocumentTableCell.BoundingRegion { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "int Microsoft.Extensions.DocumentExtraction.DocumentTableCell.ColumnIndex { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "int Microsoft.Extensions.DocumentExtraction.DocumentTableCell.ColumnSpan { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "double? Microsoft.Extensions.DocumentExtraction.DocumentTableCell.Confidence { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentElement> Microsoft.Extensions.DocumentExtraction.DocumentTableCell.Elements { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind? Microsoft.Extensions.DocumentExtraction.DocumentTableCell.Kind { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "object? Microsoft.Extensions.DocumentExtraction.DocumentTableCell.RawRepresentation { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "int Microsoft.Extensions.DocumentExtraction.DocumentTableCell.RowIndex { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "int Microsoft.Extensions.DocumentExtraction.DocumentTableCell.RowSpan { get; set; }",
-          "Stage": "Experimental"
-        }
-      ]
-    },
-    {
-      "Type": "readonly struct Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind : System.IEquatable<Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind>",
-      "Stage": "Experimental",
-      "Methods": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.DocumentTableCellKind(string value);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.DocumentTableCellKind();",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "override bool Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.Equals(object? obj);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "bool Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.Equals(Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind other);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "override int Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.GetHashCode();",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "static bool Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.operator ==(Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind left, Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind right);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "static bool Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.operator !=(Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind left, Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind right);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "override string Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.ToString();",
-          "Stage": "Experimental"
-        }
-      ],
-      "Properties": [
-        {
-          "Member": "static Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.ColumnHeader { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "static Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.Content { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "static Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.RowHeader { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "static Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.RowSection { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "string Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.Value { get; }",
-          "Stage": "Experimental"
-        }
-      ]
-    },
-    {
-      "Type": "sealed class Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.Converter",
-      "Stage": "Experimental",
-      "Methods": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.Converter.Converter();",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "override Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.Converter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type typeToConvert, System.Text.Json.JsonSerializerOptions options);",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "override void Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind.Converter.Write(System.Text.Json.Utf8JsonWriter writer, Microsoft.Extensions.DocumentExtraction.DocumentTableCellKind value, System.Text.Json.JsonSerializerOptions options);",
           "Stage": "Experimental"
         }
       ]

@@ -4,6 +4,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using Microsoft.Extensions.Documents;
 using Microsoft.Shared.Diagnostics;
 
 namespace Microsoft.Extensions.DataIngestion;
@@ -29,7 +31,12 @@ public sealed class IngestionChunk<T>
     /// <exception cref="ArgumentException">
     /// <paramref name="content"/> is a string that is empty or contains only white-space characters.
     /// </exception>
-    public IngestionChunk(T content, IngestionDocument document, string? context = null)
+    public IngestionChunk(
+        T content,
+        IngestionDocument document,
+        string? context = null,
+        IEnumerable<DocumentNodeId>? sourceNodeIds = null,
+        IEnumerable<int>? pageNumbers = null)
     {
         if (typeof(T) == typeof(string))
         {
@@ -42,6 +49,8 @@ public sealed class IngestionChunk<T>
 
         Document = Throw.IfNull(document);
         Context = context;
+        SourceNodeIds = sourceNodeIds?.Distinct().ToArray() ?? [];
+        PageNumbers = pageNumbers?.Distinct().OrderBy(static pageNumber => pageNumber).ToArray() ?? [];
     }
 
     /// <summary>
@@ -58,6 +67,12 @@ public sealed class IngestionChunk<T>
     /// Gets additional context for the chunk.
     /// </summary>
     public string? Context { get; }
+
+    /// <summary>Gets the semantic source node identifiers that contributed to this chunk.</summary>
+    public IReadOnlyList<DocumentNodeId> SourceNodeIds { get; }
+
+    /// <summary>Gets the physical source page numbers that contributed to this chunk.</summary>
+    public IReadOnlyList<int> PageNumbers { get; }
 
     /// <summary>
     /// Gets a value indicating whether this chunk has metadata.

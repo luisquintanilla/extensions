@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -6,77 +6,75 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using Microsoft.Extensions.DataIngestion.Chunkers;
+using Microsoft.Extensions.Documents;
 using Microsoft.Shared.Diagnostics;
 
 namespace Microsoft.Extensions.DataIngestion;
 
-/// <summary>
-/// Splits documents into chunks based on headers and their corresponding levels, preserving the header context.
-/// </summary>
+/// <summary>Splits documents at headings while preserving heading context.</summary>
 public sealed class HeaderChunker : IngestionChunker<string>
 {
     private const int MaxHeaderLevel = 10;
-    private readonly ElementsChunker _elementsChunker;
+    private readonly Chunkers.ElementsChunker _elementsChunker;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="HeaderChunker"/> class.
-    /// </summary>
-    /// <param name="options">The options for the chunker.</param>
+    /// <summary>Initializes a new instance of the <see cref="HeaderChunker"/> class.</summary>
     public HeaderChunker(IngestionChunkerOptions options)
     {
         _elementsChunker = new(options);
     }
 
     /// <inheritdoc/>
-    public override async IAsyncEnumerable<IngestionChunk<string>> ProcessAsync(IngestionDocument document,
+    public override async IAsyncEnumerable<IngestionChunk<string>> ProcessAsync(
+        IngestionDocument document,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _ = Throw.IfNull(document);
+        List<DocumentNode> elements = [];
+        DocumentText?[] headers = new DocumentText?[MaxHeaderLevel + 1];
 
-        List<IngestionDocumentElement> elements = [];
-        string?[] headers = new string?[MaxHeaderLevel + 1];
-
-        foreach (IngestionDocumentElement element in document.EnumerateContent())
+        foreach (DocumentNode element in document.Document.EnumerateContent())
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            if (element is IngestionDocumentHeader header)
+            if (element is DocumentText { Role: DocumentTextRole.Heading } header)
             {
-                foreach (var chunk in SplitIntoChunks(document, headers, elements))
+                foreach (IngestionChunk<string> chunk in SplitIntoChunks(document, headers, elements))
                 {
                     yield return chunk;
                 }
 
-                int headerLevel = header.Level.GetValueOrDefault();
-                headers[headerLevel] = header.GetMarkdown();
-                headers.AsSpan(headerLevel + 1).Clear(); // clear all lower level headers
-
-                continue; // don't add headers to the elements list, they are part of the context
+                int level = System.Math.Min(header.Level.GetValueOrDefault(1), MaxHeaderLevel);
+                headers[level] = header;
+                headers.AsSpan(level + 1).Clear();
             }
-
-            elements.Add(element);
+            else
+            {
+                elements.Add(element);
+            }
         }
 
-        // take care of any remaining paragraphs
-        foreach (var chunk in SplitIntoChunks(document, headers, elements))
+        foreach (IngestionChunk<string> chunk in SplitIntoChunks(document, headers, elements))
         {
             yield return chunk;
         }
     }
 
-    private IEnumerable<IngestionChunk<string>> SplitIntoChunks(IngestionDocument document, string?[] headers, List<IngestionDocumentElement> elements)
+    private IEnumerable<IngestionChunk<string>> SplitIntoChunks(
+        IngestionDocument document,
+        DocumentText?[] headers,
+        List<DocumentNode> elements)
     {
-        if (elements.Count > 0)
+        if (elements.Count == 0)
         {
-            string chunkHeader = string.Join(" ", headers.Where(h => !string.IsNullOrEmpty(h)));
-
-            foreach (var chunk in _elementsChunker.Process(document, chunkHeader, elements))
-            {
-                yield return chunk;
-            }
-
-            elements.Clear();
+            yield break;
         }
+
+        DocumentNode[] contextNodes = headers.Where(static header => header is not null).Cast<DocumentNode>().ToArray();
+        string context = string.Join(" ", contextNodes.Cast<DocumentText>().Select(static header => header.Text));
+        foreach (IngestionChunk<string> chunk in _elementsChunker.Process(document, context, elements, contextNodes))
+        {
+            yield return chunk;
+        }
+
+        elements.Clear();
     }
 }

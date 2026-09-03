@@ -1,0 +1,386 @@
+{
+  "Name": "Microsoft.Extensions.Documents.Abstractions, Version=10.10.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35",
+  "Types": [
+    {
+      "Type": "sealed class Microsoft.Extensions.Documents.Document",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.Document.Document(System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNode> children);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentNode Microsoft.Extensions.Documents.Document.GetNode(Microsoft.Extensions.Documents.DocumentNodeId id);",
+          "Stage": "Stable"
+        }
+      ],
+      "Properties": [
+        {
+          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNode> Microsoft.Extensions.Documents.Document.Children { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNode> Microsoft.Extensions.Documents.Document.Nodes { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "string Microsoft.Extensions.Documents.Document.Text { get; }",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
+      "Type": "sealed class Microsoft.Extensions.Documents.DocumentContainer : Microsoft.Extensions.Documents.DocumentNode",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentContainer.DocumentContainer(Microsoft.Extensions.Documents.DocumentNodeId id, Microsoft.Extensions.Documents.DocumentContainerRole role, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNode> children, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentPageReference>? pageReferences = null, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNodeId>? sourceNodeIds = null);",
+          "Stage": "Stable"
+        }
+      ],
+      "Properties": [
+        {
+          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNode> Microsoft.Extensions.Documents.DocumentContainer.Children { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentContainerRole Microsoft.Extensions.Documents.DocumentContainer.Role { get; }",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
+      "Type": "enum Microsoft.Extensions.Documents.DocumentContainerRole",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentContainerRole.DocumentContainerRole();",
+          "Stage": "Stable"
+        }
+      ],
+      "Fields": [
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentContainerRole Microsoft.Extensions.Documents.DocumentContainerRole.List",
+          "Stage": "Stable",
+          "Value": "1"
+        },
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentContainerRole Microsoft.Extensions.Documents.DocumentContainerRole.ListItem",
+          "Stage": "Stable",
+          "Value": "2"
+        },
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentContainerRole Microsoft.Extensions.Documents.DocumentContainerRole.Quote",
+          "Stage": "Stable",
+          "Value": "3"
+        },
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentContainerRole Microsoft.Extensions.Documents.DocumentContainerRole.Section",
+          "Stage": "Stable",
+          "Value": "0"
+        }
+      ]
+    },
+    {
+      "Type": "sealed class Microsoft.Extensions.Documents.DocumentImage : Microsoft.Extensions.Documents.DocumentNode",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentImage.DocumentImage(Microsoft.Extensions.Documents.DocumentNodeId id, System.ReadOnlyMemory<byte> content = default(System.ReadOnlyMemory<byte>), string? mediaType = null, System.Uri? source = null, string? description = null, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentPageReference>? pageReferences = null, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNodeId>? sourceNodeIds = null);",
+          "Stage": "Stable"
+        }
+      ],
+      "Properties": [
+        {
+          "Member": "System.ReadOnlyMemory<byte> Microsoft.Extensions.Documents.DocumentImage.Content { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "string? Microsoft.Extensions.Documents.DocumentImage.Description { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "string? Microsoft.Extensions.Documents.DocumentImage.MediaType { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "System.Uri? Microsoft.Extensions.Documents.DocumentImage.Source { get; }",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
+      "Type": "abstract class Microsoft.Extensions.Documents.DocumentNode",
+      "Stage": "Stable",
+      "Properties": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentNodeId Microsoft.Extensions.Documents.DocumentNode.Id { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentPageReference> Microsoft.Extensions.Documents.DocumentNode.PageReferences { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNodeId> Microsoft.Extensions.Documents.DocumentNode.SourceNodeIds { get; }",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
+      "Type": "readonly struct Microsoft.Extensions.Documents.DocumentNodeId : System.IEquatable<Microsoft.Extensions.Documents.DocumentNodeId>",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentNodeId.DocumentNodeId(string value);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentNodeId.DocumentNodeId();",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "bool Microsoft.Extensions.Documents.DocumentNodeId.Equals(Microsoft.Extensions.Documents.DocumentNodeId other);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "override bool Microsoft.Extensions.Documents.DocumentNodeId.Equals(object? obj);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "override int Microsoft.Extensions.Documents.DocumentNodeId.GetHashCode();",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "static bool Microsoft.Extensions.Documents.DocumentNodeId.operator ==(Microsoft.Extensions.Documents.DocumentNodeId left, Microsoft.Extensions.Documents.DocumentNodeId right);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "static bool Microsoft.Extensions.Documents.DocumentNodeId.operator !=(Microsoft.Extensions.Documents.DocumentNodeId left, Microsoft.Extensions.Documents.DocumentNodeId right);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "override string Microsoft.Extensions.Documents.DocumentNodeId.ToString();",
+          "Stage": "Stable"
+        }
+      ],
+      "Properties": [
+        {
+          "Member": "string Microsoft.Extensions.Documents.DocumentNodeId.Value { get; }",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
+      "Type": "readonly struct Microsoft.Extensions.Documents.DocumentPageReference : System.IEquatable<Microsoft.Extensions.Documents.DocumentPageReference>",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentPageReference.DocumentPageReference(int pageNumber);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentPageReference.DocumentPageReference();",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "bool Microsoft.Extensions.Documents.DocumentPageReference.Equals(Microsoft.Extensions.Documents.DocumentPageReference other);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "override bool Microsoft.Extensions.Documents.DocumentPageReference.Equals(object? obj);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "override int Microsoft.Extensions.Documents.DocumentPageReference.GetHashCode();",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "static bool Microsoft.Extensions.Documents.DocumentPageReference.operator ==(Microsoft.Extensions.Documents.DocumentPageReference left, Microsoft.Extensions.Documents.DocumentPageReference right);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "static bool Microsoft.Extensions.Documents.DocumentPageReference.operator !=(Microsoft.Extensions.Documents.DocumentPageReference left, Microsoft.Extensions.Documents.DocumentPageReference right);",
+          "Stage": "Stable"
+        }
+      ],
+      "Properties": [
+        {
+          "Member": "int Microsoft.Extensions.Documents.DocumentPageReference.PageNumber { get; }",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
+      "Type": "sealed class Microsoft.Extensions.Documents.DocumentTable : Microsoft.Extensions.Documents.DocumentNode",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentTable.DocumentTable(Microsoft.Extensions.Documents.DocumentNodeId id, int rowCount, int columnCount, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentTableCell> cells, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentPageReference>? pageReferences = null, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNodeId>? sourceNodeIds = null);",
+          "Stage": "Stable"
+        }
+      ],
+      "Properties": [
+        {
+          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentTableCell> Microsoft.Extensions.Documents.DocumentTable.Cells { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "int Microsoft.Extensions.Documents.DocumentTable.ColumnCount { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "int Microsoft.Extensions.Documents.DocumentTable.RowCount { get; }",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
+      "Type": "sealed class Microsoft.Extensions.Documents.DocumentTableCell : Microsoft.Extensions.Documents.DocumentNode",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentTableCell.DocumentTableCell(Microsoft.Extensions.Documents.DocumentNodeId id, int rowIndex, int columnIndex, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNode> content, int rowSpan = 1, int columnSpan = 1, Microsoft.Extensions.Documents.DocumentTableCellRole role = Microsoft.Extensions.Documents.DocumentTableCellRole.Content, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentPageReference>? pageReferences = null, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNodeId>? sourceNodeIds = null);",
+          "Stage": "Stable"
+        }
+      ],
+      "Properties": [
+        {
+          "Member": "int Microsoft.Extensions.Documents.DocumentTableCell.ColumnIndex { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "int Microsoft.Extensions.Documents.DocumentTableCell.ColumnSpan { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNode> Microsoft.Extensions.Documents.DocumentTableCell.Content { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentTableCellRole Microsoft.Extensions.Documents.DocumentTableCell.Role { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "int Microsoft.Extensions.Documents.DocumentTableCell.RowIndex { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "int Microsoft.Extensions.Documents.DocumentTableCell.RowSpan { get; }",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
+      "Type": "enum Microsoft.Extensions.Documents.DocumentTableCellRole",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentTableCellRole.DocumentTableCellRole();",
+          "Stage": "Stable"
+        }
+      ],
+      "Fields": [
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentTableCellRole Microsoft.Extensions.Documents.DocumentTableCellRole.ColumnHeader",
+          "Stage": "Stable",
+          "Value": "1"
+        },
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentTableCellRole Microsoft.Extensions.Documents.DocumentTableCellRole.Content",
+          "Stage": "Stable",
+          "Value": "0"
+        },
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentTableCellRole Microsoft.Extensions.Documents.DocumentTableCellRole.RowHeader",
+          "Stage": "Stable",
+          "Value": "2"
+        }
+      ]
+    },
+    {
+      "Type": "sealed class Microsoft.Extensions.Documents.DocumentText : Microsoft.Extensions.Documents.DocumentNode",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentText.DocumentText(Microsoft.Extensions.Documents.DocumentNodeId id, string text, Microsoft.Extensions.Documents.DocumentTextRole role = Microsoft.Extensions.Documents.DocumentTextRole.Paragraph, int? level = null, string? language = null, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentPageReference>? pageReferences = null, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNodeId>? sourceNodeIds = null);",
+          "Stage": "Stable"
+        }
+      ],
+      "Properties": [
+        {
+          "Member": "string? Microsoft.Extensions.Documents.DocumentText.Language { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "int? Microsoft.Extensions.Documents.DocumentText.Level { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentTextRole Microsoft.Extensions.Documents.DocumentText.Role { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "string Microsoft.Extensions.Documents.DocumentText.Text { get; }",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
+      "Type": "static class Microsoft.Extensions.Documents.DocumentTextProjection",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "static string Microsoft.Extensions.Documents.DocumentTextProjection.GetText(System.Collections.Generic.IEnumerable<Microsoft.Extensions.Documents.DocumentNode> nodes);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "static string Microsoft.Extensions.Documents.DocumentTextProjection.GetText(Microsoft.Extensions.Documents.DocumentNode node);",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
+      "Type": "enum Microsoft.Extensions.Documents.DocumentTextRole",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentTextRole.DocumentTextRole();",
+          "Stage": "Stable"
+        }
+      ],
+      "Fields": [
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentTextRole Microsoft.Extensions.Documents.DocumentTextRole.Caption",
+          "Stage": "Stable",
+          "Value": "3"
+        },
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentTextRole Microsoft.Extensions.Documents.DocumentTextRole.Code",
+          "Stage": "Stable",
+          "Value": "2"
+        },
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentTextRole Microsoft.Extensions.Documents.DocumentTextRole.Footer",
+          "Stage": "Stable",
+          "Value": "5"
+        },
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentTextRole Microsoft.Extensions.Documents.DocumentTextRole.Header",
+          "Stage": "Stable",
+          "Value": "4"
+        },
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentTextRole Microsoft.Extensions.Documents.DocumentTextRole.Heading",
+          "Stage": "Stable",
+          "Value": "0"
+        },
+        {
+          "Member": "const Microsoft.Extensions.Documents.DocumentTextRole Microsoft.Extensions.Documents.DocumentTextRole.Paragraph",
+          "Stage": "Stable",
+          "Value": "1"
+        }
+      ]
+    }
+  ]
+}

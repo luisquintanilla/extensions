@@ -15,7 +15,7 @@ namespace Microsoft.Extensions.DataIngestion.Processors.Tests;
 
 public class SentimentEnricherTests
 {
-    private static readonly IngestionDocument _document = new("test");
+    private static readonly IngestionDocument _document = TestDocuments.Create("test");
 
     [Fact]
     public void ThrowsOnNullOptions()

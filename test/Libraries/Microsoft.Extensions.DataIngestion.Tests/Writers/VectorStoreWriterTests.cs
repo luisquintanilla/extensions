@@ -23,7 +23,7 @@ public abstract class VectorStoreWriterTests
             vectorStore,
             dimensionCount: TestEmbeddingGenerator<string>.DimensionCount);
 
-        IngestionDocument document = new(documentId);
+        IngestionDocument document = TestDocuments.Create(documentId);
         List<IngestionChunk<string>> chunks =
         [
             new("some content", document)
@@ -72,7 +72,7 @@ public abstract class VectorStoreWriterTests
                 IncrementalIngestion = true,
             });
 
-        IngestionDocument document = new(documentId);
+        IngestionDocument document = TestDocuments.Create(documentId);
         List<IngestionChunk<string>> chunks =
         [
             new("first chunk", document)
@@ -132,7 +132,7 @@ public abstract class VectorStoreWriterTests
                 IncrementalIngestion = true,
             });
 
-        IngestionDocument document = new(documentId);
+        IngestionDocument document = TestDocuments.Create(documentId);
 
         // Create enough chunks to exercise the incremental ingestion delete-all behavior in DEBUG builds
         List<IngestionChunk<string>> chunks = [];

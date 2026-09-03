@@ -17,8 +17,7 @@ namespace Microsoft.Extensions.DocumentExtraction;
 /// <see cref="DocumentCoordinateOrigin"/> and the page dimensions (<see cref="DocumentPageDimensions"/>), so a
 /// consumer can interpret or normalize regions with engine-agnostic code. It is per page because engines
 /// can emit different units for different pages of one document (for example, a batch mixing image and
-/// PDF inputs). Unlike the taxonomy kinds (<see cref="DocumentBlockKind"/>, <see cref="DocumentTableCellKind"/>),
-/// the set of coordinate units is physically bounded, so it is modeled as a closed enumeration.
+/// PDF inputs). The set of coordinate units is physically bounded, so it is modeled as a closed enumeration.
 /// </remarks>
 [Experimental(DiagnosticIds.Experiments.DocumentExtraction, UrlFormat = DiagnosticIds.UrlFormat)]
 public enum DocumentCoordinateUnit
