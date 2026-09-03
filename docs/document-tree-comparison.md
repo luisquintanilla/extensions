@@ -30,6 +30,8 @@ Extraction geometry, confidence, raw provider objects, and provider properties l
 
 `Document.Text` and `DocumentTextProjection` are the only plain-text projection. They use fixed `\n` separators. There is no independently supplied text authority. Exact provider Markdown remains nullable on `DocumentPage`; it is neither parsed into the tree nor synthesized from it, and results do not aggregate it.
 
+Sparse table validation is independent of declared row/column dimensions and uses pairwise cell-rectangle checks, so its overlap-validation cost is O(cells²), not linear.
+
 Streaming reduction sorts page fragments and concatenates their root nodes. IDs must be unique across fragments. It deliberately does not infer a logical container spanning pages.
 
 ## Compatibility implications

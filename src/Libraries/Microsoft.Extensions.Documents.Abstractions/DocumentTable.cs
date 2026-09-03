@@ -136,6 +136,7 @@ public sealed class DocumentTable : DocumentNode
 
     private void ValidateCells()
     {
+        // Pairwise rectangle checks are O(cells^2), but remain independent of sparse table dimensions.
         for (int cellIndex = 0; cellIndex < Cells.Count; cellIndex++)
         {
             DocumentTableCell cell = Cells[cellIndex];

@@ -186,17 +186,71 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
             DocumentNode element,
             string content)
         {
-            if (element is not DocumentTable table)
+            List<(DocumentNode Node, int Start, int End)> segments = [];
+            AddNodeProjectionSegments(element, content, offset: 0, segments);
+            return segments;
+        }
+
+        private static void AddNodeProjectionSegments(
+            DocumentNode node,
+            string projection,
+            int offset,
+            List<(DocumentNode Node, int Start, int End)> segments)
+        {
+            if (projection.Length == 0)
             {
-                return [(element, 0, content.Length)];
+                return;
             }
 
-            List<(DocumentNode Node, int Start, int End)> segments = [(table, 0, content.Length)];
+            segments.Add((node, offset, offset + projection.Length));
+            switch (node)
+            {
+                case DocumentContainer container:
+                    AddSequenceProjectionSegments(container.Children, offset, segments);
+                    break;
+                case DocumentTable table:
+                    AddTableProjectionSegments(table, offset, segments);
+                    break;
+                case DocumentTableCell cell:
+                    AddSequenceProjectionSegments(cell.Content, offset, segments);
+                    break;
+            }
+        }
+
+        private static void AddSequenceProjectionSegments(
+            IEnumerable<DocumentNode> nodes,
+            int offset,
+            List<(DocumentNode Node, int Start, int End)> segments)
+        {
+            bool hasPreviousText = false;
+            foreach (DocumentNode node in nodes)
+            {
+                string projection = DocumentTextProjection.GetText(node);
+                if (projection.Length == 0)
+                {
+                    continue;
+                }
+
+                if (hasPreviousText)
+                {
+                    offset += 2;
+                }
+
+                AddNodeProjectionSegments(node, projection, offset, segments);
+                offset += projection.Length;
+                hasPreviousText = true;
+            }
+        }
+
+        private static void AddTableProjectionSegments(
+            DocumentTable table,
+            int offset,
+            List<(DocumentNode Node, int Start, int End)> segments)
+        {
             IGrouping<int, DocumentTableCell>[] rows = table.Cells
                 .GroupBy(static cell => cell.RowIndex)
                 .OrderBy(static row => row.Key)
                 .ToArray();
-            int offset = 0;
             for (int rowIndex = 0; rowIndex < rows.Length; rowIndex++)
             {
                 List<(string Text, DocumentTableCell? Cell)> columns = [];
@@ -219,10 +273,7 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                     (string cellText, DocumentTableCell? cell) = columns[columnIndex];
                     if (cell is not null && cellText.Length > 0)
                     {
-                        foreach (DocumentNode node in EnumerateNodeAndDescendants(cell))
-                        {
-                            segments.Add((node, offset, offset + cellText.Length));
-                        }
+                        AddNodeProjectionSegments(cell, cellText, offset, segments);
                     }
 
                     offset += cellText.Length;
@@ -235,28 +286,6 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                 if (rowIndex < rows.Length - 1)
                 {
                     offset++;
-                }
-            }
-
-            return segments;
-        }
-
-        private static IEnumerable<DocumentNode> EnumerateNodeAndDescendants(DocumentNode node)
-        {
-            yield return node;
-            IEnumerable<DocumentNode> children = node switch
-            {
-                DocumentContainer container => container.Children,
-                DocumentTable table => table.Cells,
-                DocumentTableCell cell => cell.Content,
-                _ => [],
-            };
-
-            foreach (DocumentNode child in children)
-            {
-                foreach (DocumentNode descendant in EnumerateNodeAndDescendants(child))
-                {
-                    yield return descendant;
                 }
             }
         }

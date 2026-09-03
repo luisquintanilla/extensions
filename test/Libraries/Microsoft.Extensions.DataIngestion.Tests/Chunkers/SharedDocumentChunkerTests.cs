@@ -173,4 +173,52 @@ public class SharedDocumentChunkerTests
                 Assert.Equal([2], chunk.PageNumbers);
             });
     }
+
+    [Fact]
+    public async Task TokenChunkerAttributesMultiTextCellContinuationsExactly()
+    {
+        DocumentTable table = new(
+            new("table"),
+            1,
+            1,
+            [
+                new DocumentTableCell(
+                    new("cell"),
+                    0,
+                    0,
+                    [
+                        TestDocuments.Text("alpha", "alpha alpha alpha alpha alpha", pageNumber: 1),
+                        TestDocuments.Text("omega", "omega omega omega omega omega", pageNumber: 2),
+                    ]),
+            ]);
+        IngestionDocument document = TestDocuments.Create("table", table);
+        DocumentTokenChunker chunker = new(new(_tokenizer) { MaxTokensPerChunk = 4, OverlapTokens = 0 });
+
+        var chunks = await chunker.ProcessAsync(document).ToListAsync();
+
+        Assert.True(chunks.Count > 1);
+        Assert.All(
+            chunks,
+            chunk =>
+            {
+                Assert.Contains(new DocumentNodeId("table"), chunk.SourceNodeIds);
+                Assert.Contains(new DocumentNodeId("cell"), chunk.SourceNodeIds);
+            });
+
+        IngestionChunk<string>[] alphaOnly = chunks
+            .Where(chunk =>
+                chunk.SourceNodeIds.Contains(new DocumentNodeId("alpha")) &&
+                !chunk.SourceNodeIds.Contains(new DocumentNodeId("omega")))
+            .ToArray();
+        IngestionChunk<string>[] omegaOnly = chunks
+            .Where(chunk =>
+                chunk.SourceNodeIds.Contains(new DocumentNodeId("omega")) &&
+                !chunk.SourceNodeIds.Contains(new DocumentNodeId("alpha")))
+            .ToArray();
+
+        Assert.NotEmpty(alphaOnly);
+        Assert.NotEmpty(omegaOnly);
+        Assert.All(alphaOnly, chunk => Assert.Equal([1], chunk.PageNumbers));
+        Assert.All(omegaOnly, chunk => Assert.Equal([2], chunk.PageNumbers));
+    }
 }
