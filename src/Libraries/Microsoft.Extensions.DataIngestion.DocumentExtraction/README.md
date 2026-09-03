@@ -70,8 +70,8 @@ alternative, not an automatic architecture recommendation.
 
 | Measure | Explicit bridge on current generic MEDI | Neutral semantic tree spike |
 |---|---:|---:|
-| Changed production C# lines | +1,082 / -41 | 2,416 spike lines |
-| Changed test C# lines | +858 / -1 | Executable runner assertions |
+| Changed production C# lines | +1,087 / -41 | 2,416 spike lines |
+| Changed test C# lines | +862 / -1 | Executable runner assertions |
 | New public types | 5 | 32 public types, replacing 10 MEDI content types |
 | Added public API entries | 32 | 32 public types |
 | New core dependency edge | None | Shared model required coordinated producer and MEDI adoption |

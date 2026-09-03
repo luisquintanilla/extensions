@@ -63,16 +63,17 @@ internal static class MarkdownProjection
     internal static string CreateTable(IngestionDocumentTable table)
     {
         StringBuilder builder = new();
-        HashSet<(int Row, int Column)> covered = [];
-        Dictionary<(int Row, int Column), IngestionDocumentTableCell> anchors = [];
+        int columnCount = table.Cells.GetLength(1);
+        HashSet<long> covered = [];
+        Dictionary<long, IngestionDocumentTableCell> anchors = [];
         foreach (IngestionDocumentTableCell cell in table.StructuredCells ?? [])
         {
-            anchors[(cell.RowIndex, cell.ColumnIndex)] = cell;
+            anchors[GetCellKey(cell.RowIndex, cell.ColumnIndex, columnCount)] = cell;
             for (int row = cell.RowIndex; row < cell.RowIndex + cell.RowSpan; row++)
             {
                 for (int column = cell.ColumnIndex; column < cell.ColumnIndex + cell.ColumnSpan; column++)
                 {
-                    covered.Add((row, column));
+                    covered.Add(GetCellKey(row, column, columnCount));
                 }
             }
         }
@@ -83,7 +84,8 @@ internal static class MarkdownProjection
             builder.AppendLine("  <tr>");
             for (int column = 0; column < table.Cells.GetLength(1); column++)
             {
-                if (anchors.TryGetValue((row, column), out IngestionDocumentTableCell? cell)
+                long cellKey = GetCellKey(row, column, columnCount);
+                if (anchors.TryGetValue(cellKey, out IngestionDocumentTableCell? cell)
                     && cell is not null)
                 {
                     string tag = cell.Kind?.Contains("header", StringComparison.OrdinalIgnoreCase) is true
@@ -118,7 +120,7 @@ internal static class MarkdownProjection
                     builder.Append(tag);
                     builder.AppendLine(">");
                 }
-                else if (!covered.Contains((row, column)))
+                else if (!covered.Contains(cellKey))
                 {
                     builder.AppendLine("    <td></td>");
                 }
@@ -130,6 +132,9 @@ internal static class MarkdownProjection
         builder.Append("</table>");
         return builder.ToString();
     }
+
+    private static long GetCellKey(int row, int column, int columnCount)
+        => ((long)row * columnCount) + column;
 
     private static void AppendCellContent(StringBuilder builder, IReadOnlyList<IngestionDocumentElement> elements)
     {

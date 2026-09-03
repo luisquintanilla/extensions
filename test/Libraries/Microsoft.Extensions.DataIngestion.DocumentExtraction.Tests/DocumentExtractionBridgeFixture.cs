@@ -32,7 +32,8 @@ internal static class DocumentExtractionBridgeFixture
                     new DocumentBlock(
                         string.Join(
                             "\n",
-                            [
+                            new string[]
+                            {
                                 "public static void Main()",
                                 "{",
                                 "    Console.WriteLine(\"``` inside code\");",
@@ -40,7 +41,7 @@ internal static class DocumentExtractionBridgeFixture
                                 "    Console.WriteLine(\"line 3\");",
                                 "    Console.WriteLine(\"line 4\");",
                                 "}",
-                            ]))
+                            }))
                     {
                         Kind = DocumentBlockKind.Code,
                     },

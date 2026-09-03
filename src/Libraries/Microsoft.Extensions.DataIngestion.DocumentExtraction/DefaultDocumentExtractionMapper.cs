@@ -72,7 +72,7 @@ internal static class DefaultDocumentExtractionMapper
                 + $"to {nameof(MarkdownOnlyPagePolicy.PreserveAsMarkdown)} to preserve it as Markdown.");
         }
 
-        section.Elements.Add(new IngestionDocumentParagraph(page.Markdown)
+        section.Elements.Add(new IngestionDocumentParagraph(page.Markdown!)
         {
             PageNumber = page.PageNumber,
         });
@@ -174,7 +174,7 @@ internal static class DefaultDocumentExtractionMapper
 
         if (!string.IsNullOrEmpty(source.Caption))
         {
-            return IngestionDocumentImage.FromText(source.Caption);
+            return IngestionDocumentImage.FromText(source.Caption!);
         }
 
         Throw.InvalidOperationException(

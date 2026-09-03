@@ -32,15 +32,13 @@ public class DocumentExtractionPipelineTests
         Assert.Contains(chunks, chunk => chunk.PageNumbers.SequenceEqual([1]));
         Assert.Contains(chunks, chunk => chunk.PageNumbers.SequenceEqual([2]));
         Assert.Contains(chunks, chunk =>
-            chunk.Content.Contains("Quarterly *Report*", System.StringComparison.Ordinal)
-            && !chunk.Content.Contains(@"Quarterly \*Report\*", System.StringComparison.Ordinal));
+            ContainsOrdinal(chunk.Content, "Quarterly *Report*")
+            && !ContainsOrdinal(chunk.Content, @"Quarterly \*Report\*"));
         Assert.Contains(chunks, chunk =>
-            chunk.Content.Contains("rowspan=\"2\"", System.StringComparison.Ordinal)
-            && chunk.Content.Contains("data-kind=\"rowHeader\"", System.StringComparison.Ordinal));
+            ContainsOrdinal(chunk.Content, "rowspan=\"2\"")
+            && ContainsOrdinal(chunk.Content, "data-kind=\"rowHeader\""));
         Assert.DoesNotContain(chunks, chunk =>
-            chunk.Content.Contains(
-                DocumentExtractionBridgeFixture.PageOneMarkdown,
-                System.StringComparison.Ordinal));
+            ContainsOrdinal(chunk.Content, DocumentExtractionBridgeFixture.PageOneMarkdown));
         Assert.All(chunks, chunk => Assert.False(chunk.HasMetadata));
 
         using TestEmbeddingGenerator<string> embeddingGenerator = new();
@@ -126,7 +124,7 @@ public class DocumentExtractionPipelineTests
             .ProcessAsync(document)
             .ToListAsync();
         IReadOnlyList<IngestionChunk<string>> codeChunks = chunks
-            .Where(chunk => chunk.Content.Contains("Console.WriteLine", System.StringComparison.Ordinal))
+            .Where(chunk => ContainsOrdinal(chunk.Content, "Console.WriteLine"))
             .ToList();
 
         Assert.True(codeChunks.Count > 1);
@@ -160,6 +158,11 @@ public class DocumentExtractionPipelineTests
             MaxTokensPerChunk = maxTokens,
             OverlapTokens = 0,
         });
+
+    private static bool ContainsOrdinal(string value, string expected)
+#pragma warning disable CA2249 // String.Contains with StringComparison is unavailable on .NET Framework.
+        => value.IndexOf(expected, System.StringComparison.Ordinal) >= 0;
+#pragma warning restore CA2249
 
     private sealed class ImageChunker : IngestionChunker<DataContent>
     {
