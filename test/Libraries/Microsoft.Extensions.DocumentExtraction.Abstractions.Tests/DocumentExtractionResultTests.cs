@@ -74,7 +74,7 @@ public class DocumentExtractionResultTests
                 new DocumentBlock("Outro"),
             ]);
 
-        Assert.Equal("Intro\n\nA\n\ncaption\tB\nC\n\nOutro", page.Text);
+        Assert.Equal("Intro\n\nA\n\ncaption\t\tB\n\t\tC\n\nOutro", page.Text);
     }
 
     [Fact]
@@ -90,6 +90,25 @@ public class DocumentExtractionResultTests
             markdown: "provider page markdown");
 
         Assert.Equal(string.Empty, page.Text);
+    }
+
+    [Fact]
+    public void TableText_PreservesEmptyCellColumnPosition()
+    {
+        DocumentPage page = new(
+            1,
+            [
+                new DocumentTable(
+                    1,
+                    3,
+                    [
+                        new DocumentTableCell(0, 0, [new DocumentBlock("A")]),
+                        new DocumentTableCell(0, 1, []),
+                        new DocumentTableCell(0, 2, [new DocumentBlock("C")]),
+                    ]),
+            ]);
+
+        Assert.Equal("A\t\tC", page.Text);
     }
 
     [Fact]

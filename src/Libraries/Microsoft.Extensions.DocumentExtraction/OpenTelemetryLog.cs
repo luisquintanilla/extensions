@@ -24,7 +24,6 @@ internal static partial class OpenTelemetryLog
         {
             return;
         }
-
         _ = activity?
             .AddTag(OpenTelemetryConsts.Error.Type, error.GetType().FullName)
             .SetStatus(ActivityStatusCode.Error, error.Message);
@@ -35,4 +34,3 @@ internal static partial class OpenTelemetryLog
         }
     }
 }
-

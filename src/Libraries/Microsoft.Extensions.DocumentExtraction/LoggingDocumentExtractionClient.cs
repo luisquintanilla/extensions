@@ -178,12 +178,34 @@ public partial class LoggingDocumentExtractionClient : DelegatingDocumentExtract
 
                 yield return update;
             }
-
-            LogCompleted(nameof(ExtractPagesAsync));
         }
         finally
         {
-            await e.DisposeAsync();
+            await DisposeStreamingEnumeratorAsync(e, cancellationToken);
+        }
+
+        LogCompleted(nameof(ExtractPagesAsync));
+    }
+
+    private async ValueTask DisposeStreamingEnumeratorAsync(
+        IAsyncEnumerator<DocumentExtractionPageResult> enumerator,
+        CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+
+        try
+        {
+            await enumerator.DisposeAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            LogInvocationCanceled(nameof(ExtractPagesAsync));
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogInvocationFailed(nameof(ExtractPagesAsync), ex);
+            throw;
         }
     }
 

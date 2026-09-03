@@ -141,10 +141,10 @@ public sealed class OpenTelemetryDocumentExtractionClient : DelegatingDocumentEx
         Stopwatch? stopwatch = _operationDurationHistogram.Enabled ? Stopwatch.StartNew() : null;
         string? requestModelId = options?.ModelId ?? _defaultModelId;
 
-        IAsyncEnumerable<DocumentExtractionPageResult> updates;
+        IAsyncEnumerator<DocumentExtractionPageResult> responseEnumerator;
         try
         {
-            updates = base.ExtractPagesAsync(document, mediaType, options, cancellationToken);
+            responseEnumerator = base.ExtractPagesAsync(document, mediaType, options, cancellationToken).GetAsyncEnumerator(cancellationToken);
         }
         catch (Exception ex)
         {
@@ -152,7 +152,6 @@ public sealed class OpenTelemetryDocumentExtractionClient : DelegatingDocumentEx
             throw;
         }
 
-        var responseEnumerator = updates.GetAsyncEnumerator(cancellationToken);
         AdditionalPropertiesDictionary? responseProperties = null;
         Exception? error = null;
         try
@@ -193,9 +192,41 @@ public sealed class OpenTelemetryDocumentExtractionClient : DelegatingDocumentEx
         }
         finally
         {
-            TraceResponse(activity, requestModelId, responseProperties, error, stopwatch);
+            await DisposeStreamingEnumeratorAsync(
+                responseEnumerator,
+                activity,
+                requestModelId,
+                responseProperties,
+                error,
+                stopwatch,
+                cancellationToken);
+        }
+    }
 
-            await responseEnumerator.DisposeAsync();
+    private async ValueTask DisposeStreamingEnumeratorAsync(
+        IAsyncEnumerator<DocumentExtractionPageResult> enumerator,
+        Activity? activity,
+        string? requestModelId,
+        AdditionalPropertiesDictionary? responseProperties,
+        Exception? error,
+        Stopwatch? stopwatch,
+        CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        Exception? completionError = error;
+
+        try
+        {
+            await enumerator.DisposeAsync();
+        }
+        catch (Exception ex)
+        {
+            completionError = ex;
+            throw;
+        }
+        finally
+        {
+            TraceResponse(activity, requestModelId, responseProperties, completionError, stopwatch);
         }
     }
 

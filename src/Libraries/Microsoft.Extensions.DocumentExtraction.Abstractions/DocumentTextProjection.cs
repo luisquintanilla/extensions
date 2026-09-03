@@ -33,15 +33,35 @@ internal static class DocumentTextProjection
             return string.Empty;
         }
 
-        return string.Join(
-            TableRowSeparator,
-            table.Cells
-                .OrderBy(static cell => cell.RowIndex)
-                .ThenBy(static cell => cell.ColumnIndex)
-                .GroupBy(static cell => cell.RowIndex)
-                .Select(static row => string.Join(
-                    TableColumnSeparator,
-                    row.Select(static cell => GetText(cell.Elements)).Where(static text => text.Length > 0)))
-                .Where(static row => row.Length > 0));
+        List<string> rows = [];
+        bool hasText = false;
+
+        foreach (IGrouping<int, DocumentTableCell> row in table.Cells
+            .OrderBy(static cell => cell.RowIndex)
+            .ThenBy(static cell => cell.ColumnIndex)
+            .GroupBy(static cell => cell.RowIndex))
+        {
+            List<string> columns = [];
+            foreach (DocumentTableCell cell in row)
+            {
+                while (columns.Count < cell.ColumnIndex)
+                {
+                    columns.Add(string.Empty);
+                }
+
+                string cellText = GetText(cell.Elements);
+                columns.Add(cellText);
+                hasText |= cellText.Length > 0;
+
+                for (int span = 1; span < cell.ColumnSpan; span++)
+                {
+                    columns.Add(string.Empty);
+                }
+            }
+
+            rows.Add(string.Join(TableColumnSeparator, columns));
+        }
+
+        return hasText ? string.Join(TableRowSeparator, rows) : string.Empty;
     }
 }
