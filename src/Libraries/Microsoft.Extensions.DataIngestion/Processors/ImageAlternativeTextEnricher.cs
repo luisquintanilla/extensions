@@ -55,7 +55,7 @@ public sealed class ImageAlternativeTextEnricher : IngestionDocumentProcessor
             return document;
         }
 
-        IngestionDocument result = new(document.Identifier, new Document(document.Document.Children.Select(node => Rewrite(node, descriptions))));
+        IngestionDocument result = new(document.Identifier, new Document(document.Document.Children.Select(node => Rewrite(node, descriptions)).ToArray()));
         foreach (KeyValuePair<string, object?> metadata in document.Metadata)
         {
             result.Metadata.Add(metadata);
@@ -83,7 +83,7 @@ public sealed class ImageAlternativeTextEnricher : IngestionDocumentProcessor
                 new DocumentContainer(
                     container.Id,
                     container.Role,
-                    container.Children.Select(child => Rewrite(child, descriptions)),
+                    container.Children.Select(child => Rewrite(child, descriptions)).ToArray(),
                     container.PageReferences,
                     container.SourceNodeIds),
             DocumentTable table =>
@@ -95,12 +95,12 @@ public sealed class ImageAlternativeTextEnricher : IngestionDocumentProcessor
                         cell.Id,
                         cell.RowIndex,
                         cell.ColumnIndex,
-                        cell.Content.Select(child => Rewrite(child, descriptions)),
+                        cell.Content.Select(child => Rewrite(child, descriptions)).ToArray(),
                         cell.RowSpan,
                         cell.ColumnSpan,
                         cell.Role,
                         cell.PageReferences,
-                        cell.SourceNodeIds)),
+                        cell.SourceNodeIds)).ToArray(),
                     table.PageReferences,
                     table.SourceNodeIds),
             _ => node,

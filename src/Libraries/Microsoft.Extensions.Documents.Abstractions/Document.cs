@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.Extensions.Documents;
 
@@ -15,7 +16,8 @@ public sealed class Document
 
     /// <summary>Initializes a new instance of the <see cref="Document"/> class.</summary>
     /// <param name="children">The root nodes in logical reading order.</param>
-    public Document(IEnumerable<DocumentNode> children)
+    [JsonConstructor]
+    public Document(IReadOnlyList<DocumentNode> children)
     {
         Children = DocumentNode.Copy(children ?? throw new ArgumentNullException(nameof(children)));
         Nodes = new ReadOnlyCollection<DocumentNode>(Enumerate(Children).ToArray());
@@ -38,9 +40,11 @@ public sealed class Document
     public IReadOnlyList<DocumentNode> Children { get; }
 
     /// <summary>Gets every node in depth-first reading order, including table-cell content.</summary>
+    [JsonIgnore]
     public IReadOnlyList<DocumentNode> Nodes { get; }
 
     /// <summary>Gets the deterministic plain-text projection of the canonical tree.</summary>
+    [JsonIgnore]
     public string Text => DocumentTextProjection.GetText(Children);
 
     /// <summary>Gets a node by its stable identifier.</summary>

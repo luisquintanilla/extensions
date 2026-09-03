@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.Extensions.Documents;
 
@@ -10,6 +11,7 @@ public readonly struct DocumentPageReference : IEquatable<DocumentPageReference>
 {
     /// <summary>Initializes a new instance of the <see cref="DocumentPageReference"/> struct.</summary>
     /// <param name="pageNumber">The positive, one-based page number.</param>
+    [JsonConstructor]
     public DocumentPageReference(int pageNumber)
     {
         if (pageNumber <= 0)

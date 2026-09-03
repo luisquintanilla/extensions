@@ -3,6 +3,8 @@
 
 using System;
 using System.Linq;
+using System.Reflection;
+using System.Text.Json;
 using Xunit;
 
 namespace Microsoft.Extensions.Documents;
@@ -126,6 +128,9 @@ public class DocumentTests
                 1,
                 1,
                 [new DocumentTableCell(new("cell"), int.MaxValue, 0, [])]));
+
+        DocumentTable sparse = new(new("sparse"), int.MaxValue, int.MaxValue, []);
+        Assert.Empty(sparse.Cells);
     }
 
     [Fact]
@@ -148,5 +153,84 @@ public class DocumentTests
         Assert.DoesNotContain("Microsoft.Extensions.DocumentExtraction.Abstractions", references);
         Assert.DoesNotContain("Microsoft.Extensions.VectorData.Abstractions", references);
         Assert.DoesNotContain("Microsoft.Extensions.AI.Abstractions", references);
+    }
+
+    [Fact]
+    public void NodeHierarchyIsClosedToExternalDerivation()
+    {
+        ConstructorInfo constructor = Assert.Single(typeof(DocumentNode).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic));
+
+        Assert.True(constructor.IsFamilyAndAssembly);
+        Assert.All(
+            typeof(DocumentNode).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(DocumentNode))),
+            type => Assert.True(type.IsSealed));
+    }
+
+    [Fact]
+    public void PolymorphicTreeSerializesAndRoundTrips()
+    {
+        Document document = new(
+        [
+            new DocumentContainer(
+                new("section"),
+                DocumentContainerRole.Section,
+                [
+                    new DocumentText(
+                        new("heading"),
+                        "Report",
+                        DocumentTextRole.Heading,
+                        level: 1,
+                        pageReferences: [new(1)],
+                        sourceNodeIds: [new("provider-heading")]),
+                    new DocumentTable(
+                        new("table"),
+                        1,
+                        1,
+                        [
+                            new DocumentTableCell(
+                                new("cell"),
+                                0,
+                                0,
+                                [
+                                    new DocumentContainer(
+                                        new("quote"),
+                                        DocumentContainerRole.Quote,
+                                        [new DocumentText(new("cell-text"), "nested")]),
+                                ],
+                                role: DocumentTableCellRole.ColumnHeader,
+                                pageReferences: [new(2)]),
+                        ],
+                        pageReferences: [new(2)]),
+                    new DocumentImage(
+                        new("image"),
+                        new byte[] { 1, 2, 3 },
+                        "image/png",
+                        new Uri("https://example.com/image.png"),
+                        "chart",
+                        pageReferences: [new(2)]),
+                ],
+                pageReferences: [new(1), new(2)]),
+        ]);
+
+        string json = JsonSerializer.Serialize(document);
+        Document roundTripped = JsonSerializer.Deserialize<Document>(json)!;
+
+        Assert.Contains("\"$type\":\"container\"", json);
+        Assert.Contains("\"Value\":\"cell\"", json);
+        Assert.Equal(document.Text, roundTripped.Text);
+        Assert.Equal(document.Nodes.Select(node => node.Id), roundTripped.Nodes.Select(node => node.Id));
+        DocumentText heading = Assert.IsType<DocumentText>(roundTripped.GetNode(new("heading")));
+        Assert.Equal([1], heading.PageReferences.Select(reference => reference.PageNumber));
+        Assert.Equal(["provider-heading"], heading.SourceNodeIds.Select(id => id.Value));
+        DocumentImage image = Assert.IsType<DocumentImage>(roundTripped.GetNode(new("image")));
+        Assert.Equal(new byte[] { 1, 2, 3 }, image.Content.ToArray());
+        Assert.Equal("image/png", image.MediaType);
+        Assert.Equal(new Uri("https://example.com/image.png"), image.Source);
+        DocumentTableCell cell = Assert.IsType<DocumentTableCell>(roundTripped.GetNode(new("cell")));
+        Assert.Equal(DocumentTableCellRole.ColumnHeader, cell.Role);
+        Assert.IsType<DocumentContainer>(Assert.Single(cell.Content));
+
+        string unknownNodeJson = json.Replace("\"$type\":\"text\"", "\"$type\":\"unknown\"");
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Document>(unknownNodeJson));
     }
 }

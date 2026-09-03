@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using Microsoft.Extensions.Documents;
 using Xunit;
 
@@ -28,5 +29,19 @@ public class DocumentExtractionEvidenceTests
         Assert.Null(typeof(DocumentNode).GetProperty("BoundingRegion"));
         Assert.Null(typeof(DocumentNode).GetProperty("RawRepresentation"));
         Assert.Null(typeof(DocumentNode).GetProperty("AdditionalProperties"));
+    }
+
+    [Fact]
+    public void EvidenceMustReferenceExactlyOneExistingNode()
+    {
+        DocumentText node = new(new("paragraph"), "literal");
+        Document document = new([node]);
+
+        Assert.Throws<ArgumentException>(
+            "evidence",
+            () => new DocumentPage(1, document, evidence: [new(new DocumentNodeId("missing"))]));
+        Assert.Throws<ArgumentException>(
+            "evidence",
+            () => new DocumentPage(1, document, evidence: [new(node.Id), new(node.Id)]));
     }
 }

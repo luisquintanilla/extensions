@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.Extensions.Documents;
 
@@ -10,6 +11,7 @@ public readonly struct DocumentNodeId : IEquatable<DocumentNodeId>
 {
     /// <summary>Initializes a new instance of the <see cref="DocumentNodeId"/> struct.</summary>
     /// <param name="value">The stable identifier value.</param>
+    [JsonConstructor]
     public DocumentNodeId(string value)
     {
         if (string.IsNullOrWhiteSpace(value))

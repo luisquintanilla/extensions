@@ -200,7 +200,7 @@ internal static class MarkdownParser
             source = new Uri(link.Url!, UriKind.RelativeOrAbsolute);
         }
 
-        return new DocumentImage(ids.Next(), content, mediaType, source, description);
+        return new DocumentImage(ids.Next(), content ?? Array.Empty<byte>(), mediaType, source, description);
     }
 
     private static bool IsDescendantOf(Inline inline, ContainerInline ancestor)

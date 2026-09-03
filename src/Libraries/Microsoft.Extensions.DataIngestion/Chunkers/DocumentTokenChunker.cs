@@ -58,6 +58,9 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                     continue;
                 }
 
+                IReadOnlyList<(DocumentNode Node, int Start, int End)> elementSourceSegments =
+                    GetProjectionSourceSegments(element, elementContent);
+                int processedCharacters = 0;
                 int contentToProcessTokenCount = _tokenizer.CountTokens(elementContent!, considerNormalization: false);
                 ReadOnlyMemory<char> contentToProcess = elementContent.AsMemory();
                 while (stringBuilderTokenCount + contentToProcessTokenCount >= _maxTokensPerChunk)
@@ -75,9 +78,15 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                         {
                             int start = stringBuilder.Length;
                             _ = stringBuilder.Append(ptr, index);
-                            sourceSegments.Add((element, start, stringBuilder.Length));
+                            AddIntersectingSourceSegments(
+                                sourceSegments,
+                                elementSourceSegments,
+                                processedCharacters,
+                                index,
+                                start);
                         }
                     }
+                    processedCharacters += index;
                     yield return FinalizeChunk();
 
                     contentToProcess = contentToProcess.Slice(index);
@@ -88,7 +97,12 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                 {
                     int remainderStart = stringBuilder.Length;
                     _ = stringBuilder.Append(contentToProcess);
-                    sourceSegments.Add((element, remainderStart, stringBuilder.Length));
+                    AddIntersectingSourceSegments(
+                        sourceSegments,
+                        elementSourceSegments,
+                        processedCharacters,
+                        contentToProcess.Length,
+                        remainderStart);
                 }
 
                 stringBuilderTokenCount += contentToProcessTokenCount;
@@ -143,6 +157,107 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                 }
 
                 return chunk;
+            }
+        }
+
+        private static void AddIntersectingSourceSegments(
+            List<(DocumentNode Node, int Start, int End)> destination,
+            IReadOnlyList<(DocumentNode Node, int Start, int End)> source,
+            int sourceStart,
+            int sourceLength,
+            int destinationStart)
+        {
+            int sourceEnd = sourceStart + sourceLength;
+            foreach ((DocumentNode node, int start, int end) in source)
+            {
+                int intersectionStart = Math.Max(start, sourceStart);
+                int intersectionEnd = Math.Min(end, sourceEnd);
+                if (intersectionStart < intersectionEnd)
+                {
+                    destination.Add((
+                        node,
+                        destinationStart + intersectionStart - sourceStart,
+                        destinationStart + intersectionEnd - sourceStart));
+                }
+            }
+        }
+
+        private static IReadOnlyList<(DocumentNode Node, int Start, int End)> GetProjectionSourceSegments(
+            DocumentNode element,
+            string content)
+        {
+            if (element is not DocumentTable table)
+            {
+                return [(element, 0, content.Length)];
+            }
+
+            List<(DocumentNode Node, int Start, int End)> segments = [(table, 0, content.Length)];
+            IGrouping<int, DocumentTableCell>[] rows = table.Cells
+                .GroupBy(static cell => cell.RowIndex)
+                .OrderBy(static row => row.Key)
+                .ToArray();
+            int offset = 0;
+            for (int rowIndex = 0; rowIndex < rows.Length; rowIndex++)
+            {
+                List<(string Text, DocumentTableCell? Cell)> columns = [];
+                foreach (DocumentTableCell cell in rows[rowIndex].OrderBy(static cell => cell.ColumnIndex))
+                {
+                    while (columns.Count < cell.ColumnIndex)
+                    {
+                        columns.Add((string.Empty, null));
+                    }
+
+                    columns.Add((DocumentTextProjection.GetText(cell.Content), cell));
+                    for (int span = 1; span < cell.ColumnSpan; span++)
+                    {
+                        columns.Add((string.Empty, null));
+                    }
+                }
+
+                for (int columnIndex = 0; columnIndex < columns.Count; columnIndex++)
+                {
+                    (string cellText, DocumentTableCell? cell) = columns[columnIndex];
+                    if (cell is not null && cellText.Length > 0)
+                    {
+                        foreach (DocumentNode node in EnumerateNodeAndDescendants(cell))
+                        {
+                            segments.Add((node, offset, offset + cellText.Length));
+                        }
+                    }
+
+                    offset += cellText.Length;
+                    if (columnIndex < columns.Count - 1)
+                    {
+                        offset++;
+                    }
+                }
+
+                if (rowIndex < rows.Length - 1)
+                {
+                    offset++;
+                }
+            }
+
+            return segments;
+        }
+
+        private static IEnumerable<DocumentNode> EnumerateNodeAndDescendants(DocumentNode node)
+        {
+            yield return node;
+            IEnumerable<DocumentNode> children = node switch
+            {
+                DocumentContainer container => container.Children,
+                DocumentTable table => table.Cells,
+                DocumentTableCell cell => cell.Content,
+                _ => [],
+            };
+
+            foreach (DocumentNode child in children)
+            {
+                foreach (DocumentNode descendant in EnumerateNodeAndDescendants(child))
+                {
+                    yield return descendant;
+                }
             }
         }
 

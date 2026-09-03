@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.Extensions.Documents;
 
@@ -27,14 +28,15 @@ public enum DocumentTextRole
 public sealed class DocumentText : DocumentNode
 {
     /// <summary>Initializes a new instance of the <see cref="DocumentText"/> class.</summary>
+    [JsonConstructor]
     public DocumentText(
         DocumentNodeId id,
         string text,
         DocumentTextRole role = DocumentTextRole.Paragraph,
         int? level = null,
         string? language = null,
-        IEnumerable<DocumentPageReference>? pageReferences = null,
-        IEnumerable<DocumentNodeId>? sourceNodeIds = null)
+        IReadOnlyList<DocumentPageReference>? pageReferences = null,
+        IReadOnlyList<DocumentNodeId>? sourceNodeIds = null)
         : base(id, pageReferences, sourceNodeIds)
     {
         Text = text ?? throw new ArgumentNullException(nameof(text));

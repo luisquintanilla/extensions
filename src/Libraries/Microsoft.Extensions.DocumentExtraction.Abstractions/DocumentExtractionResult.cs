@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
@@ -28,8 +29,23 @@ public class DocumentExtractionResult
     /// <exception cref="System.ArgumentNullException"><paramref name="pages"/> is <see langword="null"/>.</exception>
     public DocumentExtractionResult(IReadOnlyList<DocumentPage> pages)
     {
-        Pages = new ReadOnlyCollection<DocumentPage>(Throw.IfNull(pages).ToArray());
-        Document = new(Pages.SelectMany(static page => page.Document.Children));
+        DocumentPage[] orderedPages = Throw.IfNull(pages).ToArray();
+        if (Array.Exists(orderedPages, static page => page is null))
+        {
+            Throw.ArgumentException(nameof(pages), "Pages cannot contain null entries.");
+        }
+
+        Array.Sort(orderedPages, static (left, right) => left.PageNumber.CompareTo(right.PageNumber));
+        for (int index = 1; index < orderedPages.Length; index++)
+        {
+            if (orderedPages[index - 1].PageNumber == orderedPages[index].PageNumber)
+            {
+                Throw.ArgumentException(nameof(pages), $"Page number {orderedPages[index].PageNumber} is duplicated.");
+            }
+        }
+
+        Pages = new ReadOnlyCollection<DocumentPage>(orderedPages);
+        Document = new(Pages.SelectMany(static page => page.Document.Children).ToArray());
     }
 
     /// <summary>Gets the per-page structured content (text, tables, blocks).</summary>

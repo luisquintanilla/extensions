@@ -85,7 +85,7 @@ internal sealed class ElementsChunker
                         document,
                         context,
                         contributingNodes.GetSourceNodeIds().Concat(table.SourceNodeIds).Concat(tableNodes.GetSourceNodeIds()),
-                        contributingNodes.Concat(tableNodes).GetPageNumbers()));
+                        contributingNodes.Concat(new DocumentNode[] { table }).Concat(tableNodes).GetPageNumbers()));
                 }
             }
             else

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Extensions.Documents;
 using Xunit;
 
@@ -21,13 +22,14 @@ public class DocumentExtractionResultTests
     {
         DocumentExtractionResult result = new(
         [
-            TestDocument.Page(1, "page one"),
             TestDocument.Page(2, "page two"),
+            TestDocument.Page(1, "page one"),
         ]);
 
         Assert.Equal("page one\n\npage two", result.Text);
         Assert.Equal(result.Text, result.Document.Text);
         Assert.Equal(2, result.Pages.Count);
+        Assert.Equal([1, 2], result.Pages.Select(page => page.PageNumber));
     }
 
     [Fact]
@@ -75,6 +77,22 @@ public class DocumentExtractionResultTests
 
         Assert.Single(result.Pages);
         Assert.Equal("one", result.Text);
+    }
+
+    [Fact]
+    public void DuplicatePageNumbersAreRejected()
+    {
+        Assert.Throws<ArgumentException>(
+            "pages",
+            () => new DocumentExtractionResult([TestDocument.Page(1, "one"), TestDocument.Page(1, "duplicate")]));
+    }
+
+    [Fact]
+    public void PageNumbersMustBePositive()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            "pageNumber",
+            () => new DocumentPage(0, new Document([])));
     }
 
     [Fact]

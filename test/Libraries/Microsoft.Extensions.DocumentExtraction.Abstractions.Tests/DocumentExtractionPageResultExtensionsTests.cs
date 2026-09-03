@@ -72,6 +72,18 @@ public class DocumentExtractionPageResultExtensionsTests
     }
 
     [Fact]
+    public void ToDocumentExtractionResult_RejectsDuplicatePages()
+    {
+        DocumentExtractionPageResult[] updates =
+        [
+            new(TestDocument.Page(1, "page one")),
+            new(TestDocument.Page(1, "duplicate")),
+        ];
+
+        Assert.Throws<ArgumentException>("pages", updates.ToDocumentExtractionResult);
+    }
+
+    [Fact]
     public void ToDocumentExtractionResult_PreservesPerPageCoordinateMetadata()
     {
         DocumentExtractionPageResult[] updates =

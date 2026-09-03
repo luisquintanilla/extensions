@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.Extensions.Documents;
 
@@ -22,12 +23,13 @@ public enum DocumentContainerRole
 public sealed class DocumentContainer : DocumentNode
 {
     /// <summary>Initializes a new instance of the <see cref="DocumentContainer"/> class.</summary>
+    [JsonConstructor]
     public DocumentContainer(
         DocumentNodeId id,
         DocumentContainerRole role,
-        IEnumerable<DocumentNode> children,
-        IEnumerable<DocumentPageReference>? pageReferences = null,
-        IEnumerable<DocumentNodeId>? sourceNodeIds = null)
+        IReadOnlyList<DocumentNode> children,
+        IReadOnlyList<DocumentPageReference>? pageReferences = null,
+        IReadOnlyList<DocumentNodeId>? sourceNodeIds = null)
         : base(id, pageReferences, sourceNodeIds)
     {
         Children = Copy(children ?? throw new System.ArgumentNullException(nameof(children)));

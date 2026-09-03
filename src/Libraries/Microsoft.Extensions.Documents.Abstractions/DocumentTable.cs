@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.Extensions.Documents;
 
@@ -22,16 +23,17 @@ public enum DocumentTableCellRole
 public sealed class DocumentTableCell : DocumentNode
 {
     /// <summary>Initializes a new instance of the <see cref="DocumentTableCell"/> class.</summary>
+    [JsonConstructor]
     public DocumentTableCell(
         DocumentNodeId id,
         int rowIndex,
         int columnIndex,
-        IEnumerable<DocumentNode> content,
+        IReadOnlyList<DocumentNode> content,
         int rowSpan = 1,
         int columnSpan = 1,
         DocumentTableCellRole role = DocumentTableCellRole.Content,
-        IEnumerable<DocumentPageReference>? pageReferences = null,
-        IEnumerable<DocumentNodeId>? sourceNodeIds = null)
+        IReadOnlyList<DocumentPageReference>? pageReferences = null,
+        IReadOnlyList<DocumentNodeId>? sourceNodeIds = null)
         : base(id, pageReferences, sourceNodeIds)
     {
         if (rowIndex < 0)
@@ -87,13 +89,14 @@ public sealed class DocumentTableCell : DocumentNode
 public sealed class DocumentTable : DocumentNode
 {
     /// <summary>Initializes a new instance of the <see cref="DocumentTable"/> class.</summary>
+    [JsonConstructor]
     public DocumentTable(
         DocumentNodeId id,
         int rowCount,
         int columnCount,
-        IEnumerable<DocumentTableCell> cells,
-        IEnumerable<DocumentPageReference>? pageReferences = null,
-        IEnumerable<DocumentNodeId>? sourceNodeIds = null)
+        IReadOnlyList<DocumentTableCell> cells,
+        IReadOnlyList<DocumentPageReference>? pageReferences = null,
+        IReadOnlyList<DocumentNodeId>? sourceNodeIds = null)
         : base(id, pageReferences, sourceNodeIds)
     {
         if (rowCount < 0)
@@ -133,9 +136,9 @@ public sealed class DocumentTable : DocumentNode
 
     private void ValidateCells()
     {
-        bool[,] occupied = new bool[RowCount, ColumnCount];
-        foreach (DocumentTableCell cell in Cells)
+        for (int cellIndex = 0; cellIndex < Cells.Count; cellIndex++)
         {
+            DocumentTableCell cell = Cells[cellIndex];
             if (cell.RowIndex >= RowCount ||
                 cell.ColumnIndex >= ColumnCount ||
                 cell.RowSpan > RowCount - cell.RowIndex ||
@@ -144,16 +147,18 @@ public sealed class DocumentTable : DocumentNode
                 throw new ArgumentException($"Cell [{cell.RowIndex}, {cell.ColumnIndex}] exceeds the table bounds.", nameof(Cells));
             }
 
-            for (int row = cell.RowIndex; row < cell.RowIndex + cell.RowSpan; row++)
+            for (int previousIndex = 0; previousIndex < cellIndex; previousIndex++)
             {
-                for (int column = cell.ColumnIndex; column < cell.ColumnIndex + cell.ColumnSpan; column++)
+                DocumentTableCell previous = Cells[previousIndex];
+                bool rowsOverlap =
+                    cell.RowIndex < previous.RowIndex + previous.RowSpan &&
+                    previous.RowIndex < cell.RowIndex + cell.RowSpan;
+                bool columnsOverlap =
+                    cell.ColumnIndex < previous.ColumnIndex + previous.ColumnSpan &&
+                    previous.ColumnIndex < cell.ColumnIndex + cell.ColumnSpan;
+                if (rowsOverlap && columnsOverlap)
                 {
-                    if (occupied[row, column])
-                    {
-                        throw new ArgumentException($"Cell [{cell.RowIndex}, {cell.ColumnIndex}] overlaps another cell.", nameof(Cells));
-                    }
-
-                    occupied[row, column] = true;
+                    throw new ArgumentException($"Cell [{cell.RowIndex}, {cell.ColumnIndex}] overlaps another cell.", nameof(Cells));
                 }
             }
         }

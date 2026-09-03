@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.Extensions.Documents;
 
@@ -10,27 +11,28 @@ namespace Microsoft.Extensions.Documents;
 public sealed class DocumentImage : DocumentNode
 {
     /// <summary>Initializes a new instance of the <see cref="DocumentImage"/> class.</summary>
+    [JsonConstructor]
     public DocumentImage(
         DocumentNodeId id,
-        byte[]? content = null,
+        ReadOnlyMemory<byte> content = default,
         string? mediaType = null,
         Uri? source = null,
         string? description = null,
-        IEnumerable<DocumentPageReference>? pageReferences = null,
-        IEnumerable<DocumentNodeId>? sourceNodeIds = null)
+        IReadOnlyList<DocumentPageReference>? pageReferences = null,
+        IReadOnlyList<DocumentNodeId>? sourceNodeIds = null)
         : base(id, pageReferences, sourceNodeIds)
     {
-        if ((content is null || content.Length == 0) && source is null && string.IsNullOrWhiteSpace(description))
+        if (content.IsEmpty && source is null && string.IsNullOrWhiteSpace(description))
         {
             throw new ArgumentException("An image must provide binary content, a source URI, or a description.", nameof(content));
         }
 
-        if (content is { Length: > 0 } && string.IsNullOrWhiteSpace(mediaType))
+        if (!content.IsEmpty && string.IsNullOrWhiteSpace(mediaType))
         {
             throw new ArgumentException("Binary image content requires a media type.", nameof(mediaType));
         }
 
-        Content = content is null ? ReadOnlyMemory<byte>.Empty : new ReadOnlyMemory<byte>((byte[])content.Clone());
+        Content = new ReadOnlyMemory<byte>(content.ToArray());
         MediaType = string.IsNullOrWhiteSpace(mediaType) ? null : mediaType;
         Source = source;
         Description = string.IsNullOrWhiteSpace(description) ? null : description;

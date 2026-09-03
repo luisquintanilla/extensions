@@ -20,7 +20,7 @@ flowchart TD
     Integration --> Ingestion
 ```
 
-The shared package contains only the semantic value and a `System.Memory` compatibility reference for older target frameworks. It does not reference Document Extraction, Data Ingestion, VectorData, or AI. Core MEDI does not reference Document Extraction; the dedicated integration package owns client-to-reader composition.
+The shared package contains only the semantic value and a `System.Text.Json` compatibility reference for older target frameworks. It does not reference Document Extraction, Data Ingestion, VectorData, or AI. Core MEDI does not reference Document Extraction; the dedicated integration package owns client-to-reader composition.
 
 ## Semantic and evidence boundary
 
@@ -36,7 +36,7 @@ Streaming reduction sorts page fragments and concatenates their root nodes. IDs 
 
 `IngestionDocument` remains only as a thin ingestion identity/context wrapper around `Document`. The previous MEDI element hierarchy was removed rather than retained as a competing authority. Existing MEDI readers and processors must construct or immutably rewrite shared nodes. Existing Markdown-first element constructors are source-breaking preview changes.
 
-Serialization and schema versioning are intentionally deferred. Adding them would create a cross-package compatibility commitment that is not required for executable composition.
+The finite node union is closed to external derivation and has explicit stable `System.Text.Json` `$type` discriminators. This restores the serializable exchange contract that extraction elements previously provided, while making future schema evolution a deliberate cross-package compatibility commitment.
 
 ## Measured comparison
 
@@ -63,6 +63,6 @@ The focused corpus covers literal text versus Markdown, headings and code langua
 
 1. Whether the larger coordinated breaking change is justified versus the smaller bridge.
 2. Whether immutable processor rewrite ergonomics need first-class helpers.
-3. Whether future serialization should be versioned in this package or owned by a separate format package.
+3. Whether the serialized contract needs an explicit schema-version marker and evolution policy.
 4. Whether streamed page fragments need an explicit provider hook for reconstructing cross-page logical containers.
 5. Whether binary-image chunk production belongs in core MEDI or in an image-specific chunker.

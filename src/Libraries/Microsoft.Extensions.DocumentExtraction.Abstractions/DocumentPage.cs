@@ -1,8 +1,11 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Documents;
@@ -28,10 +31,37 @@ public class DocumentPage
         string? markdown = null,
         IReadOnlyList<DocumentExtractionEvidence>? evidence = null)
     {
+        if (pageNumber <= 0)
+        {
+            Throw.ArgumentOutOfRangeException(nameof(pageNumber), "Page numbers must be positive and one-based.");
+        }
+
         PageNumber = pageNumber;
         Document = Throw.IfNull(document);
         Markdown = markdown;
-        Evidence = evidence ?? [];
+
+        DocumentExtractionEvidence[] evidenceCopy = evidence?.ToArray() ?? [];
+        HashSet<DocumentNodeId> knownNodeIds = new(Document.Nodes.Select(static node => node.Id));
+        HashSet<DocumentNodeId> evidenceNodeIds = [];
+        foreach (DocumentExtractionEvidence item in evidenceCopy)
+        {
+            if (item is null)
+            {
+                Throw.ArgumentException(nameof(evidence), "Extraction evidence cannot contain null entries.");
+            }
+
+            if (!knownNodeIds.Contains(item.NodeId))
+            {
+                Throw.ArgumentException(nameof(evidence), $"Evidence references unknown document node '{item.NodeId}'.");
+            }
+
+            if (!evidenceNodeIds.Add(item.NodeId))
+            {
+                Throw.ArgumentException(nameof(evidence), $"Evidence for document node '{item.NodeId}' is duplicated.");
+            }
+        }
+
+        Evidence = new ReadOnlyCollection<DocumentExtractionEvidence>(evidenceCopy);
     }
 
     /// <summary>Gets the one-based page number.</summary>

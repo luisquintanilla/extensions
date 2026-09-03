@@ -36,8 +36,9 @@ public class SharedDocumentChunkerTests
 
         Assert.Equal("*Report*\nUse `literal`.\nRegion\tRevenue\nWest\t$1", chunk.Content);
         Assert.Equal([1, 2], chunk.PageNumbers);
-        Assert.Contains(new DocumentNodeId("heading"), chunk.SourceNodeIds);
-        Assert.Contains(new DocumentNodeId("table"), chunk.SourceNodeIds);
+        Assert.Equal(
+            ["c1", "c2", "cell-00", "cell-01", "cell-10", "cell-11", "h1", "h2", "heading", "paragraph", "table"],
+            chunk.SourceNodeIds.Select(id => id.Value).OrderBy(id => id));
     }
 
     [Fact]
@@ -83,6 +84,93 @@ public class SharedDocumentChunkerTests
         Assert.Equal(["alpha beta gamma", "delta epsilon zeta"], chunks.Select(chunk => chunk.Content));
         Assert.Equal([1], chunks[0].PageNumbers);
         Assert.Equal([2], chunks[1].PageNumbers);
-        Assert.DoesNotContain(new DocumentNodeId("row-2"), chunks[0].SourceNodeIds);
+        Assert.Equal(
+            ["row-1", "row-1-cell", "table"],
+            chunks[0].SourceNodeIds.Select(id => id.Value).OrderBy(id => id));
+        Assert.Equal(
+            ["row-2", "row-2-cell", "table"],
+            chunks[1].SourceNodeIds.Select(id => id.Value).OrderBy(id => id));
+    }
+
+    [Fact]
+    public async Task SplitTableRepeatsHeaderWithOnlyContributingProvenance()
+    {
+        DocumentTable table = new(
+            new("table"),
+            3,
+            1,
+            [
+                new DocumentTableCell(
+                    new("header-cell"),
+                    0,
+                    0,
+                    [TestDocuments.Text("header", "Heading", pageNumber: 1)],
+                    role: DocumentTableCellRole.ColumnHeader),
+                new DocumentTableCell(
+                    new("row-1-cell"),
+                    1,
+                    0,
+                    [TestDocuments.Text("row-1", "one two three", pageNumber: 2)]),
+                new DocumentTableCell(
+                    new("row-2-cell"),
+                    2,
+                    0,
+                    [TestDocuments.Text("row-2", "four five six", pageNumber: 3)]),
+            ]);
+        IngestionDocument document = TestDocuments.Create("table", table);
+
+        var chunks = await new SectionChunker(new(_tokenizer) { MaxTokensPerChunk = 6 }).ProcessAsync(document).ToListAsync();
+
+        Assert.Equal(["Heading\none two three", "Heading\nfour five six"], chunks.Select(chunk => chunk.Content));
+        Assert.Equal([1, 2], chunks[0].PageNumbers);
+        Assert.Equal([1, 3], chunks[1].PageNumbers);
+        Assert.Equal(
+            ["header", "header-cell", "row-1", "row-1-cell", "table"],
+            chunks[0].SourceNodeIds.Select(id => id.Value).OrderBy(id => id));
+        Assert.Equal(
+            ["header", "header-cell", "row-2", "row-2-cell", "table"],
+            chunks[1].SourceNodeIds.Select(id => id.Value).OrderBy(id => id));
+    }
+
+    [Fact]
+    public async Task TokenChunkerTracksTableCellRangesAcrossContinuations()
+    {
+        DocumentTable table = new(
+            new("table"),
+            2,
+            1,
+            [
+                new DocumentTableCell(
+                    new("header-cell"),
+                    0,
+                    0,
+                    [TestDocuments.Text("header", "Heading", pageNumber: 1)],
+                    role: DocumentTableCellRole.ColumnHeader),
+                new DocumentTableCell(
+                    new("row-cell"),
+                    1,
+                    0,
+                    [TestDocuments.Text("row", "one two three four five six seven eight nine ten", pageNumber: 2)]),
+            ]);
+        IngestionDocument document = TestDocuments.Create("table", table);
+        DocumentTokenChunker chunker = new(new(_tokenizer) { MaxTokensPerChunk = 4, OverlapTokens = 0 });
+
+        var chunks = await chunker.ProcessAsync(document).ToListAsync();
+
+        Assert.True(chunks.Count > 1);
+        Assert.All(chunks, chunk => Assert.Contains(new DocumentNodeId("table"), chunk.SourceNodeIds));
+        Assert.Contains(new DocumentNodeId("header-cell"), chunks[0].SourceNodeIds);
+        Assert.Contains(new DocumentNodeId("header"), chunks[0].SourceNodeIds);
+        Assert.Equal([1, 2], chunks[0].PageNumbers);
+        Assert.All(
+            chunks.Skip(1),
+            chunk =>
+            {
+                Assert.DoesNotContain(new DocumentNodeId("header-cell"), chunk.SourceNodeIds);
+                Assert.DoesNotContain(new DocumentNodeId("header"), chunk.SourceNodeIds);
+                Assert.Contains(new DocumentNodeId("row-cell"), chunk.SourceNodeIds);
+                Assert.Contains(new DocumentNodeId("row"), chunk.SourceNodeIds);
+                Assert.Equal([2], chunk.PageNumbers);
+            });
     }
 }

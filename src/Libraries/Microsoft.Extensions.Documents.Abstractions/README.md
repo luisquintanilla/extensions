@@ -6,4 +6,4 @@ This package defines a provider-neutral, immutable semantic document tree shared
 
 `Document.Text` is the deterministic plain-text projection of the canonical tree and always uses `\n` separators. The model does not contain Markdown, provider objects, extraction geometry, confidence, or arbitrary property dictionaries. Those concerns belong to producing or consuming packages.
 
-Serialization and schema versioning are intentionally not part of this initial contract.
+The tree has an explicit `System.Text.Json` polymorphic contract with stable `$type` discriminators for the finite node union. Nested containers, tables, cells, images, identifiers, source-node lineage, and page references round-trip. External node derivation is closed so unknown semantic kinds cannot silently disappear from traversal, projection, or serialization.

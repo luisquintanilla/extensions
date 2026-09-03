@@ -5,17 +5,24 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.Extensions.Documents;
 
 /// <summary>Represents one immutable node in a semantic document tree.</summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonDerivedType(typeof(DocumentContainer), typeDiscriminator: "container")]
+[JsonDerivedType(typeof(DocumentText), typeDiscriminator: "text")]
+[JsonDerivedType(typeof(DocumentTable), typeDiscriminator: "table")]
+[JsonDerivedType(typeof(DocumentTableCell), typeDiscriminator: "tableCell")]
+[JsonDerivedType(typeof(DocumentImage), typeDiscriminator: "image")]
 public abstract class DocumentNode
 {
     /// <summary>Initializes a new instance of the <see cref="DocumentNode"/> class.</summary>
-    protected DocumentNode(
+    private protected DocumentNode(
         DocumentNodeId id,
-        IEnumerable<DocumentPageReference>? pageReferences = null,
-        IEnumerable<DocumentNodeId>? sourceNodeIds = null)
+        IReadOnlyList<DocumentPageReference>? pageReferences = null,
+        IReadOnlyList<DocumentNodeId>? sourceNodeIds = null)
     {
         if (id == default)
         {
