@@ -42,14 +42,14 @@ The finite node union is closed to external derivation and has explicit stable `
 
 ## Measured comparison
 
-Both alternatives are measured against common base `1fec8651d88b19ae855c39239e75645c548e5dde`. The shared-tree figures use head `e743fa91c8c8158226ece422a3e064693ddcb17e`; bridge figures use head `c4e31ad04b16996aed67bd75319cbf4fc4fc7d4e`.
+Both alternatives are measured against common base `1fec8651d88b19ae855c39239e75645c548e5dde`. The shared-tree figures use implementation head `7958366f1790e2e05a76c7dd885c6dff94f19110`; bridge figures use head `f786bf17a88cedd5c8423e30672549c831b14456`.
 
 | Measure | Bridge | Shared tree |
 |---|---:|---:|
-| All `src/` lines | +1,289/-52 | +2,079/-1,650 |
-| All `test/` lines | +1,031/-1 | +941/-2,067 |
-| Production C# (`src/**/*.cs`) | +1,148/-51 | +1,562/-1,339 |
-| Test C# (`test/**/*.cs`) | +1,007/-1 | +912/-2,067 |
+| All `src/` lines | +1,293/-52 | +2,109/-1,650 |
+| All `test/` lines | +1,031/-1 | +989/-2,067 |
+| Production C# (`src/**/*.cs`) | +1,148/-51 | +1,592/-1,339 |
+| Test C# (`test/**/*.cs`) | +1,007/-1 | +960/-2,067 |
 | New public types | 5 | 14 |
 | Shared package public signatures | 0 | 49 across 13 types |
 | Integration package public signatures | 2 | 2 |
