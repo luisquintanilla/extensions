@@ -73,19 +73,23 @@ PR. The measurements describe change shape and compatibility impact; they are no
 
 | Measure | Explicit bridge PR #1 | Neutral shared-tree PR #2 |
 |---|---:|---:|
-| Head measured | This branch's final reviewed head | `1d82e27402420dcc5f7a93f3dca47050aa6a62c0` |
-| Production C# delta | +1,148 / -51 | +1,375 / -1,339 |
-| Test C# delta | +1,007 / -1 | +696 / -2,068 |
+| Head measured | This branch's final reviewed head | `11e5f5ef23e37bc97f083717ad8af4e95fcc45b0` |
+| Changed files | 26 | 90 |
+| Production C# delta | +1,148 / -51 | +1,562 / -1,339 |
+| Test C# delta | +1,007 / -1 | +912 / -2,067 |
 | Top-level public source type declarations | +5 / -0 | +15 / -14 |
 | Shared waist | None; explicit adapter between two models | 13 public types |
 | Core dependency shape | No dependency between the two core abstractions | Both domains consume the shared waist |
 | Existing authored Markdown constructors | Preserved | Replaced by the shared hierarchy |
 | Generic chunk/writer direction | Preserved | Preserved through the shared hierarchy |
+| Author-run validation | 809 passes, 44 expected skips | 141 tests per TFM / 564 executions, plus 5/5 templates |
+| Analyzer warnings disclosed | 0 in the focused build | 355 |
 
 Line counts are measured against common base `1fec8651d88b19ae855c39239e75645c548e5dde`
 and include C# files only. Public declaration counts include top-level source types, excluding nested
 converter helpers. PR #2 values were refreshed from its current head, not copied from the earlier
-standalone spike.
+standalone spike. Test counts and analyzer warnings are disclosed execution evidence, not quality
+scores.
 
 The corpus covers literal text versus Markdown, headings, collision-safe code fences, nested and
 spanned tables, cell roles, captioned and captionless images, empty and partial element collections,
