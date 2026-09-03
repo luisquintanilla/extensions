@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 using Microsoft.Shared.DiagnosticIds;
 using Microsoft.Shared.Diagnostics;
@@ -31,17 +32,19 @@ public class DocumentExtractionResult
     /// <summary>Gets the per-page structured content (text, tables, blocks).</summary>
     public IReadOnlyList<DocumentPage> Pages { get; }
 
-    /// <summary>Gets the full-document text, formed by joining the per-page text.</summary>
+    /// <summary>Gets the full-document text, formed deterministically by joining the derived per-page text.</summary>
+    /// <remarks>
+    /// This type intentionally does not aggregate page <see cref="DocumentPage.Markdown"/> fragments. Such fragments
+    /// are not necessarily a complete provider-supplied document rendering.
+    /// </remarks>
     public string Text => string.Join("\n\n", Pages.Select(p => p.Text));
-
-    /// <summary>Gets or sets usage details associated with the request.</summary>
-    public DocumentExtractionUsage? Usage { get; set; }
 
     /// <summary>Gets or sets the provider-native object underlying this result.</summary>
     /// <remarks>
     /// The escape hatch for provider richness that does not map onto the normalized surface, mirroring
     /// <c>ChatResponse.RawRepresentation</c>. Nothing is lost.
     /// </remarks>
+    [JsonIgnore]
     public object? RawRepresentation { get; set; }
 
     /// <summary>Gets or sets any additional properties associated with the result.</summary>

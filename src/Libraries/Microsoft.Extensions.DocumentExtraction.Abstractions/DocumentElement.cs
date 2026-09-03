@@ -14,7 +14,8 @@ namespace Microsoft.Extensions.DocumentExtraction;
 /// heterogeneous stream and project the kinds it cares about with
 /// <see cref="System.Linq.Enumerable.OfType{TResult}(System.Collections.IEnumerable)"/> (for example
 /// <c>page.Elements.OfType&lt;DocumentTable&gt;()</c>). The full page text is available directly on
-/// <see cref="DocumentPage.Text"/>. The base is shaped to be promotable to a future shared document-element type.
+/// <see cref="DocumentPage.Text"/>, which is projected from this ordered stream. The base is shaped to be
+/// promotable to a future shared document-element type.
 /// </remarks>
 [Experimental(DiagnosticIds.Experiments.DocumentExtraction, UrlFormat = DiagnosticIds.UrlFormat)]
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]

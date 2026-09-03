@@ -14,6 +14,12 @@ Libraries that provide implementations of the abstractions typically reference o
 
 To also have access to higher-level utilities for working with document-extraction clients, reference the `Microsoft.Extensions.DocumentExtraction` package instead (which itself references `Microsoft.Extensions.DocumentExtraction.Abstractions`). Most consuming applications and services should reference the `Microsoft.Extensions.DocumentExtraction` package along with a library that provides a concrete implementation of the abstractions.
 
+## Content contract
+
+`DocumentPage.Elements` is the canonical semantic content in provider reading order. `DocumentPage.Text` is a deterministic plain-text projection of those elements: blocks contribute literal text, table cells recurse in row/column order, and image captions contribute once. Text-bearing page elements are separated by blank lines; table columns use tabs and rows use newlines. Binary images and provider-formatted Markdown do not implicitly become text.
+
+`DocumentPage.Markdown` is nullable and preserves an exact provider-supplied page rendering. The libraries do not synthesize it or parse it back into elements. `DocumentExtractionResult` intentionally has no Markdown aggregation because page fragments are not necessarily a complete provider-supplied document rendering; its `Text` is derived from page text with fixed page boundaries.
+
 ## Install the package
 
 From the command-line:

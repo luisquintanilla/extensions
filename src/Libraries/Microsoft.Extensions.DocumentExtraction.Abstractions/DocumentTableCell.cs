@@ -17,13 +17,14 @@ public class DocumentTableCell
     /// <summary>Initializes a new instance of the <see cref="DocumentTableCell"/> class.</summary>
     /// <param name="rowIndex">The zero-based row index of the cell.</param>
     /// <param name="columnIndex">The zero-based column index of the cell.</param>
-    /// <param name="content">The text content of the cell.</param>
-    /// <exception cref="System.ArgumentNullException"><paramref name="content"/> is <see langword="null"/>.</exception>
-    public DocumentTableCell(int rowIndex, int columnIndex, string content)
+    /// <param name="elements">The structured content of the cell, in reading order.</param>
+    /// <exception cref="System.ArgumentNullException"><paramref name="elements"/> is <see langword="null"/>.</exception>
+    [JsonConstructor]
+    public DocumentTableCell(int rowIndex, int columnIndex, IReadOnlyList<DocumentElement> elements)
     {
         RowIndex = rowIndex;
         ColumnIndex = columnIndex;
-        Content = Throw.IfNull(content);
+        Elements = Throw.IfNull(elements);
     }
 
     /// <summary>Gets or sets the role of the cell, for example <see cref="DocumentTableCellKind.ColumnHeader"/> or <see cref="DocumentTableCellKind.Content"/>.</summary>
@@ -41,17 +42,12 @@ public class DocumentTableCell
     /// <summary>Gets or sets the number of columns the cell spans. The default is 1.</summary>
     public int ColumnSpan { get; set; } = 1;
 
-    /// <summary>Gets the text content of the cell.</summary>
-    public string Content { get; }
-
-    /// <summary>Gets or sets the nested content of the cell, in reading order, when the engine provides structured cell content.</summary>
+    /// <summary>Gets the canonical content of the cell, in reading order.</summary>
     /// <remarks>
-    /// When <see langword="null"/>, the cell is text-only and <see cref="Content"/> carries its text. When present,
-    /// the cell holds richer structured content (for example nested blocks or tables), and <see cref="Content"/>
-    /// remains a flat-text convenience. This mirrors the nested-content model used by engines such as Docling and
-    /// Google Document AI.
+    /// Cells use the same recursive element model as pages. This avoids a competing flat text authority and preserves
+    /// nested blocks, tables, and images supplied by engines such as Docling and Google Document AI.
     /// </remarks>
-    public IReadOnlyList<DocumentElement>? Elements { get; set; }
+    public IReadOnlyList<DocumentElement> Elements { get; }
 
     /// <summary>Gets or sets the region of the page the cell occupies, when the engine provides geometry.</summary>
     /// <remarks>

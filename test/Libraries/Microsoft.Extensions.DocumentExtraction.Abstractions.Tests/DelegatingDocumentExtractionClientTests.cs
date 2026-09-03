@@ -62,8 +62,8 @@ public class DelegatingDocumentExtractionClientTests
         using var cts = new CancellationTokenSource();
         DocumentExtractionPageResult[] expectedUpdates =
         [
-            new(new DocumentPage(1, "page one")),
-            new(new DocumentPage(2, "page two")),
+            new(new DocumentPage(1, [new DocumentBlock("page one")])),
+            new(new DocumentPage(2, [new DocumentBlock("page two")])),
         ];
 
         using var inner = new TestDocumentExtractionClient

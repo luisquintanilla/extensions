@@ -16,28 +16,39 @@ public class DocumentPage
 {
     /// <summary>Initializes a new instance of the <see cref="DocumentPage"/> class.</summary>
     /// <param name="pageNumber">The one-based page number.</param>
-    /// <param name="text">The structured text for this page.</param>
-    /// <exception cref="System.ArgumentNullException"><paramref name="text"/> is <see langword="null"/>.</exception>
-    public DocumentPage(int pageNumber, string text)
+    /// <param name="elements">The elements extracted from the page, in reading order.</param>
+    /// <param name="markdown">The exact provider-supplied Markdown for the page, when available.</param>
+    /// <exception cref="System.ArgumentNullException"><paramref name="elements"/> is <see langword="null"/>.</exception>
+    [JsonConstructor]
+    public DocumentPage(int pageNumber, IReadOnlyList<DocumentElement> elements, string? markdown = null)
     {
         PageNumber = pageNumber;
-        Text = Throw.IfNull(text);
+        Elements = Throw.IfNull(elements);
+        Markdown = markdown;
     }
 
     /// <summary>Gets the one-based page number.</summary>
     public int PageNumber { get; }
 
-    /// <summary>Gets the structured text for this page, with headings, tables, and reading order preserved.</summary>
-    public string Text { get; }
+    /// <summary>Gets the plain text deterministically projected from <see cref="Elements"/>.</summary>
+    /// <remarks>
+    /// Provider-supplied <see cref="Markdown"/> is never parsed or used as a fallback. A page with no text-bearing
+    /// elements has an empty value even when <see cref="Markdown"/> is present.
+    /// </remarks>
+    public string Text => DocumentTextProjection.GetText(Elements);
 
-    /// <summary>Gets or sets the elements extracted from this page, in reading order.</summary>
+    /// <summary>Gets the canonical elements extracted from this page, in reading order.</summary>
     /// <remarks>
     /// A single heterogeneous stream of blocks, tables, and images in the order a human would read them.
     /// Project a specific kind with <see cref="System.Linq.Enumerable.OfType{TResult}(System.Collections.IEnumerable)"/>,
     /// for example <c>Elements.OfType&lt;DocumentTable&gt;()</c>. The full page text is available directly on
     /// <see cref="Text"/>, so reading-order consumers do not need geometry math.
     /// </remarks>
-    public IReadOnlyList<DocumentElement> Elements { get; set; } = [];
+    public IReadOnlyList<DocumentElement> Elements { get; }
+
+    /// <summary>Gets the exact provider-supplied formatted Markdown for this page, when available.</summary>
+    /// <remarks>This value is preserved as supplied and is never synthesized from or parsed into <see cref="Elements"/>.</remarks>
+    public string? Markdown { get; }
 
     /// <summary>Gets or sets the page dimensions (width and height), expressed in <see cref="CoordinateUnit"/>, when the engine provides them.</summary>
     /// <remarks>

@@ -14,9 +14,8 @@ namespace Microsoft.Extensions.DocumentExtraction;
 /// <para>
 /// An <see cref="IDocumentExtractionClient.ExtractPagesAsync"/> request produces a sequence of
 /// <see cref="DocumentExtractionPageResult"/> instances, one per page as that page finishes (carrying the completed
-/// <see cref="Page"/>). Progress rides along on each result via <see cref="PagesProcessed"/> and
-/// <see cref="TotalPages"/> for long-running operations such as Azure Document Intelligence. Completion is
-/// signaled by the end of the sequence.
+/// <see cref="Page"/>). The total page count can be reported via <see cref="TotalPages"/> when known.
+/// Completion is signaled by the end of the sequence.
 /// </para>
 /// <para>
 /// The relationship between <see cref="DocumentExtractionResult"/> and <see cref="DocumentExtractionPageResult"/> is codified in
@@ -40,15 +39,8 @@ public class DocumentExtractionPageResult
     /// <summary>Gets the page produced in this update.</summary>
     public DocumentPage Page { get; }
 
-    /// <summary>Gets or sets the number of pages processed so far, when known.</summary>
-    public int? PagesProcessed { get; set; }
-
     /// <summary>Gets or sets the total number of pages, when known.</summary>
     public int? TotalPages { get; set; }
-
-    /// <summary>Gets or sets usage details associated with the request, when reported.</summary>
-    /// <remarks>Usage is typically carried on a terminal update once the full document has been processed.</remarks>
-    public DocumentExtractionUsage? Usage { get; set; }
 
     /// <summary>Gets or sets the provider-native object underlying this update.</summary>
     /// <remarks>

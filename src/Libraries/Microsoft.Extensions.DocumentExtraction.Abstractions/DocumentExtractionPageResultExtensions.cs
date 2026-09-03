@@ -68,11 +68,6 @@ public static class DocumentExtractionPageResultExtensions
     {
         pages.Add(update.Page);
 
-        if (update.Usage is not null)
-        {
-            result.Usage = update.Usage;
-        }
-
         if (update.AdditionalProperties is not null)
         {
             if (result.AdditionalProperties is null)

@@ -10,6 +10,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Shared.DiagnosticIds;
 using Microsoft.Shared.Diagnostics;
@@ -84,7 +85,7 @@ public sealed class OpenTelemetryDocumentExtractionClient : DelegatingDocumentEx
     /// environment variable is set to "true" (case-insensitive).
     /// </value>
     /// <remarks>
-    /// By default, telemetry includes metadata, such as page counts, but not raw inputs
+    /// By default, telemetry includes operational metadata, but not raw inputs
     /// and outputs, such as document content. The default value can be overridden by setting the
     /// <c>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT</c> environment variable to "true".
     /// Explicitly setting this property will override the environment variable.
@@ -123,7 +124,7 @@ public sealed class OpenTelemetryDocumentExtractionClient : DelegatingDocumentEx
         }
         finally
         {
-            TraceResponse(activity, requestModelId, response, error, stopwatch);
+            TraceResponse(activity, requestModelId, response?.AdditionalProperties, error, stopwatch);
         }
     }
 
@@ -147,12 +148,12 @@ public sealed class OpenTelemetryDocumentExtractionClient : DelegatingDocumentEx
         }
         catch (Exception ex)
         {
-            TraceResponse(activity, requestModelId, response: null, ex, stopwatch);
+            TraceResponse(activity, requestModelId, responseProperties: null, ex, stopwatch);
             throw;
         }
 
         var responseEnumerator = updates.GetAsyncEnumerator(cancellationToken);
-        List<DocumentExtractionPageResult> trackedUpdates = [];
+        AdditionalPropertiesDictionary? responseProperties = null;
         Exception? error = null;
         try
         {
@@ -174,7 +175,15 @@ public sealed class OpenTelemetryDocumentExtractionClient : DelegatingDocumentEx
                     throw;
                 }
 
-                trackedUpdates.Add(update);
+                if (update.AdditionalProperties is { } updateProperties)
+                {
+                    responseProperties ??= [];
+                    foreach (KeyValuePair<string, object?> property in updateProperties)
+                    {
+                        responseProperties[property.Key] = property.Value;
+                    }
+                }
+
                 yield return update;
                 if (activity is not null)
                 {
@@ -184,7 +193,7 @@ public sealed class OpenTelemetryDocumentExtractionClient : DelegatingDocumentEx
         }
         finally
         {
-            TraceResponse(activity, requestModelId, trackedUpdates.ToDocumentExtractionResult(), error, stopwatch);
+            TraceResponse(activity, requestModelId, responseProperties, error, stopwatch);
 
             await responseEnumerator.DisposeAsync();
         }
@@ -236,7 +245,7 @@ public sealed class OpenTelemetryDocumentExtractionClient : DelegatingDocumentEx
     private void TraceResponse(
         Activity? activity,
         string? requestModelId,
-        DocumentExtractionResult? response,
+        AdditionalPropertiesDictionary? responseProperties,
         Exception? error,
         Stopwatch? stopwatch)
     {
@@ -255,20 +264,15 @@ public sealed class OpenTelemetryDocumentExtractionClient : DelegatingDocumentEx
 
         OpenTelemetryLog.RecordOperationError(activity, _logger, error);
 
-        if (response is not null && activity is not null)
+        if (responseProperties is not null && activity is not null)
         {
-            if (response.Usage?.PagesProcessed is int pages)
-            {
-                _ = activity.AddTag(OpenTelemetryConsts.GenAI.Usage.PagesProcessed, pages);
-            }
-
             // Log all additional response properties as raw values on the span.
             // Since AdditionalProperties has undefined meaning, we treat it as potentially sensitive data.
-            if (EnableSensitiveData && response.AdditionalProperties is { } props)
+            if (EnableSensitiveData)
             {
-                foreach (KeyValuePair<string, object?> prop in props)
+                foreach (KeyValuePair<string, object?> property in responseProperties)
                 {
-                    _ = activity.AddTag(prop.Key, prop.Value);
+                    _ = activity.AddTag(property.Key, property.Value);
                 }
             }
         }

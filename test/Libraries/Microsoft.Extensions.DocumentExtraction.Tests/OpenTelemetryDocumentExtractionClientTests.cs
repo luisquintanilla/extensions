@@ -36,10 +36,7 @@ public class OpenTelemetryDocumentExtractionClientTests
             ExtractAsyncCallback = async (document, mediaType, options, cancellationToken) =>
             {
                 await Task.Yield();
-                return new DocumentExtractionResult([new DocumentPage(1, "This is the recognized text.")])
-                {
-                    Usage = new() { PagesProcessed = 3 },
-                };
+                return new DocumentExtractionResult([new DocumentPage(1, [new DocumentBlock("This is the recognized text.")])]);
             },
 
             GetServiceCallback = (serviceType, serviceKey) =>
@@ -82,9 +79,53 @@ public class OpenTelemetryDocumentExtractionClientTests
         Assert.Equal(enableSensitiveData ? "value1" : null, activity.GetTagItem("service_tier"));
         Assert.Equal(enableSensitiveData ? "value2" : null, activity.GetTagItem("SomethingElse"));
 
-        Assert.Equal(3, (int)activity.GetTagItem("gen_ai.usage.pages_processed")!);
+        Assert.Null(activity.GetTagItem("gen_ai.usage.pages_processed"));
 
         Assert.True(activity.Duration.TotalMilliseconds > 0);
+    }
+
+    [Fact]
+    public async Task StreamingAdditionalProperties_AreMergedIntoTelemetryAsync()
+    {
+        var sourceName = Guid.NewGuid().ToString();
+        var activities = new List<Activity>();
+        using var tracerProvider = OpenTelemetry.Sdk.CreateTracerProviderBuilder()
+            .AddSource(sourceName)
+            .AddInMemoryExporter(activities)
+            .Build();
+
+        using var innerClient = new TestDocumentExtractionClient
+        {
+            ExtractPagesAsyncCallback = (document, mediaType, options, cancellationToken) => YieldPagesAsync(),
+        };
+        using var client = innerClient
+            .AsBuilder()
+            .UseOpenTelemetry(null, sourceName, configure: instance => instance.EnableSensitiveData = true)
+            .Build();
+
+        int pageCount = 0;
+        await foreach (DocumentExtractionPageResult _ in client.ExtractPagesAsync(Stream.Null, "application/pdf"))
+        {
+            pageCount++;
+        }
+
+        Assert.Equal(2, pageCount);
+        Activity activity = Assert.Single(activities);
+        Assert.Equal("first", activity.GetTagItem("property.a"));
+        Assert.Equal("second", activity.GetTagItem("property.b"));
+
+        static async IAsyncEnumerable<DocumentExtractionPageResult> YieldPagesAsync()
+        {
+            await Task.Yield();
+            yield return new(new DocumentPage(1, [new DocumentBlock("one")]))
+            {
+                AdditionalProperties = new() { ["property.a"] = "first" },
+            };
+            yield return new(new DocumentPage(2, [new DocumentBlock("two")]))
+            {
+                AdditionalProperties = new() { ["property.b"] = "second" },
+            };
+        }
     }
 
     [Fact]

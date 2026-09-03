@@ -398,19 +398,11 @@
           "Stage": "Experimental"
         },
         {
-          "Member": "int? Microsoft.Extensions.DocumentExtraction.DocumentExtractionPageResult.PagesProcessed { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
           "Member": "object? Microsoft.Extensions.DocumentExtraction.DocumentExtractionPageResult.RawRepresentation { get; set; }",
           "Stage": "Experimental"
         },
         {
           "Member": "int? Microsoft.Extensions.DocumentExtraction.DocumentExtractionPageResult.TotalPages { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentExtractionUsage? Microsoft.Extensions.DocumentExtraction.DocumentExtractionPageResult.Usage { get; set; }",
           "Stage": "Experimental"
         }
       ]
@@ -454,42 +446,6 @@
         {
           "Member": "string Microsoft.Extensions.DocumentExtraction.DocumentExtractionResult.Text { get; }",
           "Stage": "Experimental"
-        },
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentExtractionUsage? Microsoft.Extensions.DocumentExtraction.DocumentExtractionResult.Usage { get; set; }",
-          "Stage": "Experimental"
-        }
-      ]
-    },
-    {
-      "Type": "class Microsoft.Extensions.DocumentExtraction.DocumentExtractionUsage",
-      "Stage": "Experimental",
-      "Methods": [
-        {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentExtractionUsage.DocumentExtractionUsage();",
-          "Stage": "Experimental"
-        }
-      ],
-      "Properties": [
-        {
-          "Member": "Microsoft.Extensions.AI.AdditionalPropertiesDictionary? Microsoft.Extensions.DocumentExtraction.DocumentExtractionUsage.AdditionalProperties { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "int? Microsoft.Extensions.DocumentExtraction.DocumentExtractionUsage.InputTokenCount { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "int? Microsoft.Extensions.DocumentExtraction.DocumentExtractionUsage.OutputTokenCount { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "int? Microsoft.Extensions.DocumentExtraction.DocumentExtractionUsage.PagesProcessed { get; set; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "int? Microsoft.Extensions.DocumentExtraction.DocumentExtractionUsage.TotalTokenCount { get; set; }",
-          "Stage": "Experimental"
         }
       ]
     },
@@ -508,7 +464,11 @@
           "Stage": "Experimental"
         },
         {
-          "Member": "Microsoft.Extensions.AI.DataContent? Microsoft.Extensions.DocumentExtraction.DocumentImage.Content { get; set; }",
+          "Member": "System.ReadOnlyMemory<byte>? Microsoft.Extensions.DocumentExtraction.DocumentImage.Content { get; set; }",
+          "Stage": "Experimental"
+        },
+        {
+          "Member": "string? Microsoft.Extensions.DocumentExtraction.DocumentImage.MediaType { get; set; }",
           "Stage": "Experimental"
         }
       ]
@@ -518,7 +478,7 @@
       "Stage": "Experimental",
       "Methods": [
         {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentPage.DocumentPage(int pageNumber, string text);",
+          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentPage.DocumentPage(int pageNumber, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentElement> elements, string? markdown = null);",
           "Stage": "Experimental"
         }
       ],
@@ -540,7 +500,11 @@
           "Stage": "Experimental"
         },
         {
-          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentElement> Microsoft.Extensions.DocumentExtraction.DocumentPage.Elements { get; set; }",
+          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentElement> Microsoft.Extensions.DocumentExtraction.DocumentPage.Elements { get; }",
+          "Stage": "Experimental"
+        },
+        {
+          "Member": "string? Microsoft.Extensions.DocumentExtraction.DocumentPage.Markdown { get; }",
           "Stage": "Experimental"
         },
         {
@@ -694,7 +658,7 @@
       "Stage": "Experimental",
       "Methods": [
         {
-          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentTableCell.DocumentTableCell(int rowIndex, int columnIndex, string content);",
+          "Member": "Microsoft.Extensions.DocumentExtraction.DocumentTableCell.DocumentTableCell(int rowIndex, int columnIndex, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentElement> elements);",
           "Stage": "Experimental"
         }
       ],
@@ -720,11 +684,7 @@
           "Stage": "Experimental"
         },
         {
-          "Member": "string Microsoft.Extensions.DocumentExtraction.DocumentTableCell.Content { get; }",
-          "Stage": "Experimental"
-        },
-        {
-          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentElement>? Microsoft.Extensions.DocumentExtraction.DocumentTableCell.Elements { get; set; }",
+          "Member": "System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentElement> Microsoft.Extensions.DocumentExtraction.DocumentTableCell.Elements { get; }",
           "Stage": "Experimental"
         },
         {
