@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Microsoft.Extensions.DataIngestion</RootNamespace>
+    <Description>Unit tests for Microsoft.Extensions.DataIngestion.DocumentExtraction.</Description>
+    <NoWarn>$(NoWarn);MEDE0001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Libraries\Microsoft.Extensions.DataIngestion.DocumentExtraction\Microsoft.Extensions.DataIngestion.DocumentExtraction.csproj" ProjectUnderTest="true" />
+    <ProjectReference Include="..\..\..\src\Libraries\Microsoft.Extensions.DataIngestion\Microsoft.Extensions.DataIngestion.csproj" />
+    <ProjectReference Include="..\..\..\src\Libraries\Microsoft.Extensions.Documents.Abstractions\Microsoft.Extensions.Documents.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.Cl100kBase" />
+  </ItemGroup>
+</Project>

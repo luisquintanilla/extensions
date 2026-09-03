@@ -76,6 +76,30 @@ public class DocumentTests
     }
 
     [Fact]
+    public void TableCellsSupportNestedSemanticContentAndSpans()
+    {
+        DocumentTable nested = new(
+            new("nested"),
+            1,
+            1,
+            [new DocumentTableCell(0, 0, [new DocumentText(new("nested-text"), "inside")])]);
+        DocumentTable outer = new(
+            new("outer"),
+            2,
+            2,
+            [
+                new DocumentTableCell(0, 0, [nested], rowSpan: 2),
+                new DocumentTableCell(0, 1, [new DocumentText(new("header"), "value")], role: DocumentTableCellRole.ColumnHeader),
+                new DocumentTableCell(1, 1, [new DocumentText(new("cell"), "tail")]),
+            ]);
+
+        Document document = new([outer]);
+
+        Assert.Equal("inside\tvalue\n\ttail", document.Text);
+        Assert.Same(nested, document.GetNode(new("nested")));
+    }
+
+    [Fact]
     public void BinaryImageIsDefensivelyCopiedAndCaptionless()
     {
         byte[] bytes = [1, 2, 3];
