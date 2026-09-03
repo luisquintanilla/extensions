@@ -32,20 +32,18 @@ internal static class DefaultDocumentExtractionMapper
                 PageNumber = pageNumber,
             };
 
-            if (page.Elements.Count == 0)
+            foreach (DocumentElement sourceElement in page.Elements)
+            {
+                IngestionDocumentElement? element = MapElement(sourceElement, pageNumber);
+                if (element is not null)
+                {
+                    section.Elements.Add(element);
+                }
+            }
+
+            if (section.Elements.Count == 0)
             {
                 MapElementlessPage(page, section, markdownOnlyPagePolicy);
-            }
-            else
-            {
-                foreach (DocumentElement sourceElement in page.Elements)
-                {
-                    IngestionDocumentElement? element = MapElement(sourceElement, pageNumber);
-                    if (element is not null)
-                    {
-                        section.Elements.Add(element);
-                    }
-                }
             }
 
             document.Sections.Add(section);

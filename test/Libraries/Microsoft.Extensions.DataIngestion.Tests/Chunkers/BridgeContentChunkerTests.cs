@@ -38,6 +38,27 @@ public class BridgeContentChunkerTests
     }
 
     [Fact]
+    public async Task AuthoredMarkdownStillWinsOverItsTextProjection()
+    {
+        IngestionDocument document = new("authored-markdown");
+        document.Sections.Add(new()
+        {
+            Elements =
+            {
+                new IngestionDocumentParagraph("Use **bold** text.")
+                {
+                    Text = "Use bold text.",
+                },
+            },
+        });
+
+        IngestionChunk<string> chunk = Assert.Single(
+            await CreateChunker().ProcessAsync(document).ToListAsync());
+
+        Assert.Equal("Use **bold** text.", chunk.Content);
+    }
+
+    [Fact]
     public async Task SectionChunkerSplitsCodeIntoCompleteFences()
     {
         IngestionDocument document = new("code");

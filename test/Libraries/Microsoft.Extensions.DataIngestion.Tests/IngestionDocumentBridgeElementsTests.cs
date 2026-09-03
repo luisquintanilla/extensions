@@ -17,8 +17,10 @@ public class IngestionDocumentBridgeElementsTests
         IngestionDocumentParagraph markdown = new(Value);
 
         Assert.Equal(Value, literal.Text);
+        Assert.True(literal.IsLiteralText);
         Assert.Equal(@"Use \`code\` and \[links\]\(https://example\.test\)\.", literal.GetMarkdown());
         Assert.Null(markdown.Text);
+        Assert.False(markdown.IsLiteralText);
         Assert.Equal(Value, markdown.GetMarkdown());
     }
 

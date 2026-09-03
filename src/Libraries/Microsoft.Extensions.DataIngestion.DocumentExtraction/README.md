@@ -50,7 +50,7 @@ shared-model solution.
 | Title block | Literal `IngestionDocumentHeader` |
 | Code block | Typed `IngestionDocumentCodeBlock` |
 | Paragraph or provider-specific block kind | Literal `IngestionDocumentParagraph`; an unknown kind value is intentionally dropped |
-| Empty text block | Omitted because MEDI text elements require non-empty content |
+| Empty text block | Omitted because MEDI text elements require non-empty content; if every element is omitted, any page Markdown still goes through the configured Markdown-only policy |
 | Structured table | Typed table cells retain indexes, spans, roles, and recursively mapped nested content |
 | Table with only `MarkdownRepresentation` | Preserved through the existing explicit Markdown table path |
 | Image bytes and optional media type/caption | BCL bytes, media type, and alternative text are copied without creating placeholder Markdown |
@@ -70,10 +70,10 @@ alternative, not an automatic architecture recommendation.
 
 | Measure | Explicit bridge on current generic MEDI | Neutral semantic tree spike |
 |---|---:|---:|
-| Changed production C# lines | +1,087 / -41 | 2,416 spike lines |
-| Changed test C# lines | +862 / -1 | Executable runner assertions |
+| Changed production C# lines | +1,096 / -41 | 2,416 spike lines |
+| Changed test C# lines | +907 / -1 | Executable runner assertions |
 | New public types | 5 | 32 public types, replacing 10 MEDI content types |
-| Added public API entries | 32 | 32 public types |
+| Added public API entries | 33 | 32 public types |
 | New core dependency edge | None | Shared model required coordinated producer and MEDI adoption |
 | Consumer-owned mapper/chunker/writer stack | None | None |
 | Existing authored Markdown constructors | Preserved | Replaced by the shared hierarchy |

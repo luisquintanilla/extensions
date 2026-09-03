@@ -145,6 +145,28 @@ public class DocumentExtractionReaderTests
     }
 
     [Fact]
+    public async Task EmptyCanonicalElementsStillUseMarkdownOnlyPolicy()
+    {
+        DocumentExtractionReader reader = new(
+            CreateClient(new(
+            [
+                new DocumentPage(
+                    5,
+                    [new DocumentBlock(string.Empty)],
+                    "**provider Markdown**"),
+            ])));
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => reader.ReadAsync(new MemoryStream([1]), "document", "application/pdf"));
+
+        Assert.Contains("page 5", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            nameof(MarkdownOnlyPagePolicy.PreserveAsMarkdown),
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CanonicalElementsTakePrecedenceOverPartialProviderMarkdown()
     {
         DocumentExtractionReader reader = new(

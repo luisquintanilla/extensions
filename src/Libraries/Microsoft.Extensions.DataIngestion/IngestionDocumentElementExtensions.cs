@@ -19,7 +19,9 @@ internal static class IngestionDocumentElementExtensions
         {
             IngestionDocumentImage image => image.AlternativeText ?? image.Text,
             IngestionDocumentCodeBlock => element.GetMarkdown(),
-            _ => element.Text ?? element.GetMarkdown()
+            _ => element.IsLiteralText
+                ? element.Text
+                : element.GetMarkdown()
         };
     }
 }

@@ -43,6 +43,12 @@ public abstract class IngestionDocumentElement
     public string? Text { get; set; }
 
     /// <summary>
+    /// Gets a value indicating whether <see cref="Text"/> is the literal source content rather than
+    /// a text projection of explicit Markdown.
+    /// </summary>
+    public bool IsLiteralText { get; private protected set; }
+
+    /// <summary>
     /// Gets the markdown representation of the element.
     /// </summary>
     /// <returns>The markdown representation.</returns>
@@ -123,6 +129,7 @@ public sealed class IngestionDocumentParagraph : IngestionDocumentElement
         => new()
         {
             Text = Throw.IfNullOrEmpty(text),
+            IsLiteralText = true,
         };
 }
 
@@ -154,6 +161,7 @@ public sealed class IngestionDocumentHeader : IngestionDocumentElement
         => new()
         {
             Text = Throw.IfNullOrEmpty(text),
+            IsLiteralText = true,
             Level = level,
         };
 
@@ -204,6 +212,7 @@ public sealed class IngestionDocumentCodeBlock : IngestionDocumentElement
     public IngestionDocumentCodeBlock(string code)
     {
         Text = Throw.IfNullOrEmpty(code);
+        IsLiteralText = true;
     }
 
     /// <inheritdoc/>
