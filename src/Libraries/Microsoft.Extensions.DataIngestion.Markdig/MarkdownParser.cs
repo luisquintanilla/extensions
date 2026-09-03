@@ -1,7 +1,8 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -9,6 +10,7 @@ using Markdig;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using Microsoft.Extensions.Documents;
 using Microsoft.Shared.Diagnostics;
 
 namespace Microsoft.Extensions.DataIngestion;
@@ -20,306 +22,225 @@ internal static class MarkdownParser
         _ = Throw.IfNullOrEmpty(markdown);
         _ = Throw.IfNullOrEmpty(identifier);
 
-        // Markdig's "UseAdvancedExtensions" option includes many common extensions beyond
-        // CommonMark, such as citations, figures, footnotes, grid tables, mathematics
-        // task lists, diagrams, and more.
-        var pipeline = new MarkdownPipelineBuilder()
-            .UseAdvancedExtensions()
-            .Build();
-
+        MarkdownPipeline pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
         MarkdownDocument markdownDocument = Markdown.Parse(markdown, pipeline);
-        return Map(markdownDocument, markdown, identifier);
-    }
-
-#if !NET
-    internal static System.Threading.Tasks.Task<string> ReadToEndAsync(this System.IO.StreamReader reader, System.Threading.CancellationToken cancellationToken)
-        => cancellationToken.IsCancellationRequested ? System.Threading.Tasks.Task.FromCanceled<string>(cancellationToken) : reader.ReadToEndAsync();
-#endif
-
-    private static IngestionDocument Map(MarkdownDocument markdownDocument, string documentMarkdown, string identifier)
-    {
-        IngestionDocumentSection rootSection = new(documentMarkdown);
-        IngestionDocument result = new(identifier)
-        {
-            Sections = { rootSection }
-        };
-
+        NodeIds ids = new(identifier);
+        List<DocumentNode> children = [];
         bool previousWasBreak = false;
+
         foreach (Block block in markdownDocument)
         {
-            if (block is ThematicBreakBlock breakBlock)
+            if (block is ThematicBreakBlock)
             {
-                // We have encountered a thematic break (horizontal rule): ----------- etc.
                 previousWasBreak = true;
                 continue;
             }
 
-            if (block is LinkReferenceDefinitionGroup linkReferenceGroup)
-            {
-                continue; // In the future, we might want to handle links differently.
-            }
-
-            if (IsEmptyBlock(block))
+            if (block is LinkReferenceDefinitionGroup || IsEmptyBlock(block))
             {
                 continue;
             }
 
-            rootSection.Elements.Add(MapBlock(documentMarkdown, previousWasBreak, block));
+            children.Add(MapBlock(block, previousWasBreak, ids));
             previousWasBreak = false;
         }
 
-        return result;
+        return new IngestionDocument(identifier, new Document(children));
     }
 
-    private static bool IsEmptyBlock(Block block) // Block with no text. Sample: QuoteBlock the next block is a quote.
-        => block is LeafBlock emptyLeafBlock && (emptyLeafBlock.Inline is null || emptyLeafBlock.Inline.FirstChild is null);
+#if !NET
+    internal static System.Threading.Tasks.Task<string> ReadToEndAsync(
+        this System.IO.StreamReader reader,
+        System.Threading.CancellationToken cancellationToken) =>
+        cancellationToken.IsCancellationRequested
+            ? System.Threading.Tasks.Task.FromCanceled<string>(cancellationToken)
+            : reader.ReadToEndAsync();
+#endif
 
-    private static IngestionDocumentElement MapBlock(string documentMarkdown, bool previousWasBreak, Block block)
-    {
-        string elementMarkdown = documentMarkdown.Substring(block.Span.Start, block.Span.Length);
+    private static bool IsEmptyBlock(Block block) =>
+        block is LeafBlock leaf && (leaf.Inline is null || leaf.Inline.FirstChild is null) && block is not CodeBlock;
 
-        IngestionDocumentElement element = block switch
+    private static DocumentNode MapBlock(Block block, bool previousWasBreak, NodeIds ids) =>
+        block switch
         {
-            LeafBlock leafBlock => MapLeafBlockToElement(leafBlock, previousWasBreak, elementMarkdown),
-            ListBlock listBlock => MapListBlock(listBlock, previousWasBreak, documentMarkdown, elementMarkdown),
-            QuoteBlock quoteBlock => MapQuoteBlock(quoteBlock, previousWasBreak, documentMarkdown, elementMarkdown),
-            Table table => new IngestionDocumentTable(elementMarkdown, GetCells(table, documentMarkdown)),
-            _ => throw new NotSupportedException($"Block type '{block.GetType().Name}' is not supported.")
+            HeadingBlock heading => new DocumentText(
+                ids.Next(),
+                GetText(heading.Inline),
+                DocumentTextRole.Heading,
+                level: heading.Level),
+            ParagraphBlock paragraph when TryGetOnlyImage(paragraph, out LinkInline? image) => MapImage(image!, ids),
+            ParagraphBlock paragraph => new DocumentText(
+                ids.Next(),
+                GetText(paragraph.Inline),
+                previousWasBreak ? DocumentTextRole.Footer : DocumentTextRole.Paragraph),
+            FencedCodeBlock code => new DocumentText(
+                ids.Next(),
+                code.Lines.ToString(),
+                DocumentTextRole.Code,
+                language: code.Info?.ToString()),
+            CodeBlock code => new DocumentText(ids.Next(), code.Lines.ToString(), DocumentTextRole.Code),
+            ListBlock list => MapList(list, previousWasBreak, ids),
+            QuoteBlock quote => MapContainer(quote, DocumentContainerRole.Quote, previousWasBreak, ids),
+            Table table => MapTable(table, ids),
+            _ => throw new NotSupportedException($"Block type '{block.GetType().Name}' is not supported."),
         };
 
-        return element;
+    private static DocumentContainer MapList(ListBlock list, bool previousWasBreak, NodeIds ids)
+    {
+        List<DocumentNode> items = [];
+        foreach (Block block in list)
+        {
+            if (block is ListItemBlock item)
+            {
+                items.Add(MapContainer(item, DocumentContainerRole.ListItem, previousWasBreak, ids));
+            }
+        }
+
+        return new DocumentContainer(ids.Next(), DocumentContainerRole.List, items);
     }
 
-    private static IngestionDocumentElement MapLeafBlockToElement(LeafBlock block, bool previousWasBreak, string elementMarkdown)
-        => block switch
-        {
-            HeadingBlock heading => new IngestionDocumentHeader(elementMarkdown)
-            {
-                Text = GetText(heading.Inline),
-                Level = heading.Level
-            },
-            ParagraphBlock footer when previousWasBreak => new IngestionDocumentFooter(elementMarkdown)
-            {
-                Text = GetText(footer.Inline),
-            },
-            ParagraphBlock image when image.Inline!.Descendants<LinkInline>().FirstOrDefault() is LinkInline link && link.IsImage => MapImage(elementMarkdown, link),
-            ParagraphBlock paragraph => new IngestionDocumentParagraph(elementMarkdown)
-            {
-                Text = GetText(paragraph.Inline),
-            },
-            CodeBlock codeBlock => new IngestionDocumentParagraph(elementMarkdown)
-            {
-                Text = GetText(codeBlock.Inline),
-            },
-            _ => throw new NotSupportedException($"Block type '{block.GetType().Name}' is not supported.")
-        };
-
-    private static IngestionDocumentImage MapImage(string elementMarkdown, LinkInline link)
+    private static DocumentContainer MapContainer(
+        ContainerBlock container,
+        DocumentContainerRole role,
+        bool previousWasBreak,
+        NodeIds ids)
     {
-        IngestionDocumentImage result = new(elementMarkdown);
-
-        // ![Alt text](data:image/type;base64,...)
-        if (link.FirstChild is LiteralInline literal)
+        DocumentNodeId id = ids.Next();
+        List<DocumentNode> children = [];
+        foreach (Block child in container)
         {
-            result.AlternativeText = literal.Content.ToString();
-        }
-
-        if (link.Url is not null && link.Url.StartsWith("data:image/", StringComparison.Ordinal))
-        {
-            // Parse the data URL format: data:image/{type};base64,{data}
-            ReadOnlySpan<char> url = link.Url.AsSpan("data:".Length);
-
-            // Find the semicolon that separates media type from encoding
-            int semicolonIndex = url.IndexOf(';');
-            if (semicolonIndex > 0)
+            if (!IsEmptyBlock(child))
             {
-                ReadOnlySpan<char> mediaType = url.Slice(0, semicolonIndex);
-
-                // Find the comma that separates encoding from data
-                int commaIndex = url.IndexOf(',');
-                if (commaIndex > semicolonIndex)
-                {
-                    // Check if it's base64 encoded
-                    ReadOnlySpan<char> encoding = url.Slice(semicolonIndex + 1, commaIndex - semicolonIndex - 1);
-                    if (encoding.SequenceEqual("base64".AsSpan()))
-                    {
-                        result.Content = Convert.FromBase64String(url.Slice(commaIndex + 1).ToString());
-                        result.MediaType = mediaType.ToString();
-                    }
-                }
+                children.Add(MapBlock(child, previousWasBreak, ids));
             }
         }
 
-        return result;
+        return new DocumentContainer(id, role, children);
     }
 
-    private static IngestionDocumentSection MapListBlock(ListBlock listBlock, bool previousWasBreak, string documentMarkdown, string listMarkdown)
+    private static DocumentTable MapTable(Table table, NodeIds ids)
     {
-        IngestionDocumentSection list = new(listMarkdown);
-        foreach (Block? item in listBlock)
+        DocumentNodeId tableId = ids.Next();
+        List<DocumentTableCell> cells = [];
+        int columnCount = 0;
+
+        for (int rowIndex = 0; rowIndex < table.Count; rowIndex++)
         {
-            if (item is not ListItemBlock listItemBlock)
-            {
-                continue;
-            }
-
-            foreach (Block? child in listItemBlock)
-            {
-                if (child is not LeafBlock leafBlock || IsEmptyBlock(leafBlock))
-                {
-                    continue; // Skip empty blocks in lists
-                }
-
-                string childMarkdown = documentMarkdown.Substring(leafBlock.Span.Start, leafBlock.Span.Length);
-                IngestionDocumentElement element = MapLeafBlockToElement(leafBlock, previousWasBreak, childMarkdown);
-                list.Elements.Add(element);
-            }
-        }
-
-        return list;
-    }
-
-    private static IngestionDocumentSection MapQuoteBlock(QuoteBlock quoteBlock, bool previousWasBreak, string documentMarkdown, string elementMarkdown)
-    {
-        IngestionDocumentSection quote = new(elementMarkdown);
-        foreach (Block child in quoteBlock)
-        {
-            if (IsEmptyBlock(child))
-            {
-                continue; // Skip empty blocks in quotes
-            }
-
-            quote.Elements.Add(MapBlock(documentMarkdown, previousWasBreak, child));
-        }
-
-        return quote;
-    }
-
-    private static string? GetText(ContainerInline? containerInline)
-    {
-        Debug.Assert(containerInline != null, "ContainerInline should not be null here.");
-        Debug.Assert(containerInline!.FirstChild != null, "FirstChild should not be null here.");
-
-        if (ReferenceEquals(containerInline.FirstChild, containerInline.LastChild))
-        {
-            // If there is only one child, return its text.
-            return containerInline.FirstChild!.ToString();
-        }
-
-        StringBuilder content = new(100);
-        foreach (Inline inline in containerInline)
-        {
-#pragma warning disable IDE0058 // Expression value is never used
-            if (inline is LiteralInline literalInline)
-            {
-                content.Append(literalInline.Content);
-            }
-            else if (inline is LineBreakInline)
-            {
-                content.AppendLine(); // Append a new line for line breaks
-            }
-            else if (inline is ContainerInline another)
-            {
-                // EmphasisInline is also a ContainerInline, but it does not get any special treatment,
-                // as we use raw text here (instead of a markdown, where emphasis can be expressed).
-                content.Append(GetText(another));
-            }
-            else if (inline is CodeInline codeInline)
-            {
-                content.Append(codeInline.Content);
-            }
-            else if (inline is HtmlInline htmlInline)
-            {
-                content.Append(htmlInline.Tag);
-            }
-            else
-            {
-                throw new NotSupportedException($"Inline type '{inline.GetType().Name}' is not supported.");
-            }
-#pragma warning restore IDE0058 // Expression value is never used
-        }
-
-        return content.ToString();
-    }
-
-#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
-#pragma warning disable S3967 // Multidimensional arrays should not be used
-    private static IngestionDocumentElement?[,] GetCells(Table table, string outputContent)
-    {
-        int firstRowIndex = SkipFirstRow(table, outputContent) ? 1 : 0;
-
-        // Calculate the actual number of columns by examining the rows.
-        // table.ColumnDefinitions.Count can vary: for tables WITH trailing pipes it's (columns + 1),
-        // but for tables WITHOUT trailing pipes it's equal to the actual column count.
-        int columnCount = GetColumnCount(table, firstRowIndex);
-        var cells = new IngestionDocumentElement?[table.Count - firstRowIndex, columnCount];
-
-        for (int rowIndex = firstRowIndex; rowIndex < table.Count; rowIndex++)
-        {
-            var tableRow = (TableRow)table[rowIndex];
+            TableRow row = (TableRow)table[rowIndex];
             int columnIndex = 0;
-            for (int cellIndex = 0; cellIndex < tableRow.Count; cellIndex++)
+            foreach (TableCell cell in row)
             {
-                var tableCell = (TableCell)tableRow[cellIndex];
-                var content = tableCell.Count switch
+                List<DocumentNode> content = [];
+                foreach (Block block in cell)
                 {
-                    0 => null,
-                    1 => MapBlock(outputContent, previousWasBreak: false, tableCell[0]),
-                    _ => throw new NotSupportedException($"Cells with {tableCell.Count} elements are not supported.")
-                };
-
-                for (int columnSpan = 0; columnSpan < tableCell.ColumnSpan; columnSpan++, columnIndex++)
-                {
-                    // tableCell.ColumnIndex defaults to -1, so it's not used here.
-                    cells[rowIndex - firstRowIndex, columnIndex] = content;
-                }
-            }
-        }
-
-        return cells;
-
-        static int GetColumnCount(Table table, int firstRowIndex)
-        {
-            int maxColumns = 0;
-            for (int rowIndex = firstRowIndex; rowIndex < table.Count; rowIndex++)
-            {
-                var tableRow = (TableRow)table[rowIndex];
-                int columnCount = 0;
-                for (int cellIndex = 0; cellIndex < tableRow.Count; cellIndex++)
-                {
-                    var tableCell = (TableCell)tableRow[cellIndex];
-                    columnCount += tableCell.ColumnSpan;
-                }
-
-                maxColumns = Math.Max(maxColumns, columnCount);
-            }
-
-            return maxColumns;
-        }
-
-        // Some parsers like MarkItDown include a row with invalid markdown before the separator row:
-        // |  |  |  |  |
-        // | --- | --- | --- | --- |
-        static bool SkipFirstRow(Table table, string outputContent)
-        {
-            if (table.Count > 0)
-            {
-                var firstRow = (TableRow)table[0];
-                for (int cellIndex = 0; cellIndex < firstRow.Count; cellIndex++)
-                {
-                    var tableCell = (TableCell)firstRow[cellIndex];
-                    if (!string.IsNullOrWhiteSpace(MapBlock(outputContent, previousWasBreak: false, tableCell[0]).Text))
+                    if (!IsEmptyBlock(block))
                     {
-                        return false;
+                        content.Add(MapBlock(block, previousWasBreak: false, ids));
                     }
                 }
 
-                return true;
+                int columnSpan = Math.Max(1, cell.ColumnSpan);
+                cells.Add(new(
+                    rowIndex,
+                    columnIndex,
+                    content,
+                    columnSpan: columnSpan,
+                    role: rowIndex == 0 ? DocumentTableCellRole.ColumnHeader : DocumentTableCellRole.Content));
+                columnIndex += columnSpan;
             }
 
+            columnCount = Math.Max(columnCount, columnIndex);
+        }
+
+        return new DocumentTable(tableId, table.Count, columnCount, cells);
+    }
+
+    private static bool TryGetOnlyImage(ParagraphBlock paragraph, out LinkInline? image)
+    {
+        LinkInline[] images = paragraph.Inline!.Descendants<LinkInline>().Where(static link => link.IsImage).ToArray();
+        image = images.Length == 1 ? images[0] : null;
+        if (images.Length == 0)
+        {
             return false;
         }
+
+        LinkInline selectedImage = image!;
+        bool hasOtherText = paragraph.Inline.Descendants<LiteralInline>()
+            .Any(literal => !ReferenceEquals(literal.Parent, selectedImage) && !string.IsNullOrWhiteSpace(literal.Content.ToString()));
+        if (images.Length != 1 || hasOtherText)
+        {
+            throw new NotSupportedException("Markdown paragraphs that mix images with other content are not supported.");
+        }
+
+        return true;
     }
-#pragma warning restore CA1814 // Prefer jagged arrays over multidimensional
-#pragma warning restore S3967 // Multidimensional arrays should not be used
+
+    private static DocumentImage MapImage(LinkInline link, NodeIds ids)
+    {
+        string? description = link.FirstChild is LiteralInline literal ? literal.Content.ToString() : null;
+        byte[]? content = null;
+        string? mediaType = null;
+        Uri? source = null;
+
+        if (link.Url is string url && url.StartsWith("data:", StringComparison.Ordinal))
+        {
+            int semicolon = url.IndexOf(';');
+            int comma = url.IndexOf(',');
+            if (semicolon > 5 && comma > semicolon && string.Equals(url.Substring(semicolon + 1, comma - semicolon - 1), "base64", StringComparison.Ordinal))
+            {
+                mediaType = url.Substring(5, semicolon - 5);
+                content = Convert.FromBase64String(url.Substring(comma + 1));
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(link.Url))
+        {
+            source = new Uri(link.Url!, UriKind.RelativeOrAbsolute);
+        }
+
+        return new DocumentImage(ids.Next(), content, mediaType, source, description);
+    }
+
+    private static string GetText(ContainerInline? container)
+    {
+        Debug.Assert(container is not null);
+        StringBuilder text = new();
+        foreach (Inline inline in container!)
+        {
+            switch (inline)
+            {
+                case LiteralInline literal:
+                    _ = text.Append(literal.Content);
+                    break;
+                case LineBreakInline:
+                    _ = text.Append('\n');
+                    break;
+                case ContainerInline nested:
+                    _ = text.Append(GetText(nested));
+                    break;
+                case CodeInline code:
+                    _ = text.Append(code.Content);
+                    break;
+                case HtmlInline html:
+                    _ = text.Append(html.Tag);
+                    break;
+                default:
+                    throw new NotSupportedException($"Inline type '{inline.GetType().Name}' is not supported.");
+            }
+        }
+
+        return text.ToString();
+    }
+
+    private sealed class NodeIds
+    {
+        private readonly string _prefix;
+        private int _next;
+
+        public NodeIds(string prefix)
+        {
+            _prefix = prefix;
+        }
+
+        public DocumentNodeId Next() => new($"{_prefix}:{_next++}");
+    }
 }

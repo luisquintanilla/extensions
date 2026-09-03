@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using Microsoft.Extensions.Documents;
 using Microsoft.ML.Tokenizers;
 using Microsoft.Shared.Diagnostics;
 
@@ -46,7 +47,8 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
 
             int stringBuilderTokenCount = 0;
             StringBuilder stringBuilder = new();
-            foreach (IngestionDocumentElement element in document.EnumerateContent())
+            List<DocumentNode> sourceNodes = [];
+            foreach (DocumentNode element in document.Document.EnumerateContent())
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 string? elementContent = element.GetSemanticContent();
@@ -55,6 +57,7 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                     continue;
                 }
 
+                sourceNodes.Add(element);
                 int contentToProcessTokenCount = _tokenizer.CountTokens(elementContent!, considerNormalization: false);
                 ReadOnlyMemory<char> contentToProcess = elementContent.AsMemory();
                 while (stringBuilderTokenCount + contentToProcessTokenCount >= _maxTokensPerChunk)
@@ -73,7 +76,7 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                             _ = stringBuilder.Append(ptr, index);
                         }
                     }
-                    yield return FinalizeChunk();
+                    yield return FinalizeChunk(element);
 
                     contentToProcess = contentToProcess.Slice(index);
                     contentToProcessTokenCount = _tokenizer.CountTokens(contentToProcess.Span, considerNormalization: false);
@@ -89,14 +92,21 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
             }
             yield break;
 
-            IngestionChunk<string> FinalizeChunk()
+            IngestionChunk<string> FinalizeChunk(DocumentNode? continuingNode = null)
             {
                 IngestionChunk<string> chunk = new IngestionChunk<string>(
                     content: stringBuilder.ToString(),
                     document: document,
-                    context: string.Empty);
+                    context: string.Empty,
+                    sourceNodeIds: sourceNodes.GetSourceNodeIds(),
+                    pageNumbers: sourceNodes.GetPageNumbers());
                 _ = stringBuilder.Clear();
                 stringBuilderTokenCount = 0;
+                sourceNodes.Clear();
+                if (continuingNode is not null)
+                {
+                    sourceNodes.Add(continuingNode);
+                }
 
                 if (_chunkOverlap > 0)
                 {
