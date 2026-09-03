@@ -30,6 +30,7 @@ public static class DocumentTextProjection
             DocumentText text => text.Text,
             DocumentImage image => image.Description ?? string.Empty,
             DocumentContainer container => GetText(container.Children),
+            DocumentTableCell cell => GetText(cell.Content),
             DocumentTable table => GetTableText(table),
             _ => string.Empty,
         };

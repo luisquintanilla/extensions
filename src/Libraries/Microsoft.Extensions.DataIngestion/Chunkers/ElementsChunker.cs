@@ -56,7 +56,14 @@ internal sealed class ElementsChunker
             {
                 totalTokenCount += elementTokenCount;
                 AppendNewLineAndSpan(_currentChunk, semanticContent.AsSpan());
-                contributingNodes.Add(element);
+                if (element is DocumentTable completeTable)
+                {
+                    contributingNodes.AddRange(GetNodeAndDescendants(completeTable));
+                }
+                else
+                {
+                    contributingNodes.Add(element);
+                }
             }
             else if (element is DocumentTable table)
             {
@@ -65,8 +72,7 @@ internal sealed class ElementsChunker
                     Commit();
                 }
 
-                List<DocumentNode> tableNodes = [.. contributingNodes, .. GetTableNodes(table)];
-                foreach (string tableChunk in GetTableChunks(table))
+                foreach ((string tableChunk, IReadOnlyList<DocumentNode> tableNodes) in GetTableChunks(table))
                 {
                     string content = context.Length == 0 ? tableChunk : context + "\n" + tableChunk;
                     if (CountTokens(content.AsSpan()) > _maxTokensPerChunk)
@@ -78,8 +84,8 @@ internal sealed class ElementsChunker
                         content,
                         document,
                         context,
-                        tableNodes.GetSourceNodeIds(),
-                        tableNodes.GetPageNumbers()));
+                        contributingNodes.GetSourceNodeIds().Concat(table.SourceNodeIds).Concat(tableNodes.GetSourceNodeIds()),
+                        contributingNodes.Concat(tableNodes).GetPageNumbers()));
                 }
             }
             else
@@ -173,20 +179,27 @@ internal sealed class ElementsChunker
 #endif
     }
 
-    private static IEnumerable<DocumentNode> GetTableNodes(DocumentTable table)
+    private static IEnumerable<DocumentNode> GetNodeAndDescendants(DocumentNode node)
     {
-        yield return table;
-        foreach (DocumentTableCell cell in table.Cells)
+        yield return node;
+        IEnumerable<DocumentNode> children = node switch
         {
-            yield return cell;
-            foreach (DocumentNode node in cell.Content)
+            DocumentContainer container => container.Children,
+            DocumentTable table => table.Cells,
+            DocumentTableCell cell => cell.Content,
+            _ => [],
+        };
+
+        foreach (DocumentNode child in children)
+        {
+            foreach (DocumentNode descendant in GetNodeAndDescendants(child))
             {
-                yield return node;
+                yield return descendant;
             }
         }
     }
 
-    private static IEnumerable<string> GetTableChunks(DocumentTable table)
+    private static IEnumerable<(string Text, IReadOnlyList<DocumentNode> Nodes)> GetTableChunks(DocumentTable table)
     {
         IGrouping<int, DocumentTableCell>[] rows = table.Cells
             .GroupBy(static cell => cell.RowIndex)
@@ -197,16 +210,25 @@ internal sealed class ElementsChunker
             yield break;
         }
 
-        string header = GetTableRow(rows[0]);
-        if (rows.Length == 1)
+        bool hasHeader = rows[0].Any(static cell => cell.Role == DocumentTableCellRole.ColumnHeader);
+        string? header = hasHeader ? GetTableRow(rows[0]) : null;
+        DocumentNode[] headerNodes = hasHeader
+            ? rows[0].SelectMany(GetNodeAndDescendants).ToArray()
+            : [];
+        int firstDataRow = hasHeader ? 1 : 0;
+        if (firstDataRow == rows.Length)
         {
-            yield return header;
+            yield return (header!, headerNodes);
             yield break;
         }
 
-        for (int rowIndex = 1; rowIndex < rows.Length; rowIndex++)
+        for (int rowIndex = firstDataRow; rowIndex < rows.Length; rowIndex++)
         {
-            yield return header + "\n" + GetTableRow(rows[rowIndex]);
+            string rowText = GetTableRow(rows[rowIndex]);
+            DocumentNode[] rowNodes = rows[rowIndex].SelectMany(GetNodeAndDescendants).ToArray();
+            yield return (
+                header is null ? rowText : header + "\n" + rowText,
+                [.. headerNodes, .. rowNodes]);
         }
     }
 

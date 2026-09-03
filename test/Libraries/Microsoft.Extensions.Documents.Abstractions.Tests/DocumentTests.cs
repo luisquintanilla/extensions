@@ -136,6 +136,7 @@ public class DocumentTests
         Document document = new([new DocumentTable(new("table"), 1, 2, [second, first])]);
 
         Assert.Equal(["table", "first", "a", "second", "b"], document.Nodes.Select(node => node.Id.Value));
+        Assert.Equal("A", DocumentTextProjection.GetText(first));
     }
 
     [Fact]

@@ -64,4 +64,25 @@ public class SharedDocumentChunkerTests
 
         Assert.Equal(["One\nalpha", "One Two\nbeta"], chunks.Select(chunk => chunk.Content));
     }
+
+    [Fact]
+    public async Task SplitHeaderlessTableDoesNotDuplicateRowsAndKeepsRowProvenance()
+    {
+        DocumentTable table = new(
+            new("table"),
+            2,
+            1,
+            [
+                new DocumentTableCell(new("row-1-cell"), 0, 0, [TestDocuments.Text("row-1", "alpha beta gamma", pageNumber: 1)]),
+                new DocumentTableCell(new("row-2-cell"), 1, 0, [TestDocuments.Text("row-2", "delta epsilon zeta", pageNumber: 2)]),
+            ]);
+        IngestionDocument document = TestDocuments.Create("table", table);
+
+        var chunks = await new SectionChunker(new(_tokenizer) { MaxTokensPerChunk = 5 }).ProcessAsync(document).ToListAsync();
+
+        Assert.Equal(["alpha beta gamma", "delta epsilon zeta"], chunks.Select(chunk => chunk.Content));
+        Assert.Equal([1], chunks[0].PageNumbers);
+        Assert.Equal([2], chunks[1].PageNumbers);
+        Assert.DoesNotContain(new DocumentNodeId("row-2"), chunks[0].SourceNodeIds);
+    }
 }

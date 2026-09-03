@@ -84,9 +84,13 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers
                     contentToProcessTokenCount = _tokenizer.CountTokens(contentToProcess.Span, considerNormalization: false);
                 }
 
-                int remainderStart = stringBuilder.Length;
-                _ = stringBuilder.Append(contentToProcess);
-                sourceSegments.Add((element, remainderStart, stringBuilder.Length));
+                if (!contentToProcess.IsEmpty)
+                {
+                    int remainderStart = stringBuilder.Length;
+                    _ = stringBuilder.Append(contentToProcess);
+                    sourceSegments.Add((element, remainderStart, stringBuilder.Length));
+                }
+
                 stringBuilderTokenCount += contentToProcessTokenCount;
             }
 
