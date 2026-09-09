@@ -103,4 +103,18 @@ public class SharedDocumentChunkerTests
             Assert.True(chunk.TokenCount <= 2);
         });
     }
+
+    [Fact]
+    public async Task TokenChunkerDoesNotEmitTrailingOverlapOnlyChunk()
+    {
+        IngestionDocument document = TestDocuments.Create("overlap", TestDocuments.Text("text", "hello world"));
+
+        var chunks = await new DocumentTokenChunker(new(_tokenizer) { MaxTokensPerChunk = 2, OverlapTokens = 1 })
+            .ProcessAsync(document)
+            .ToListAsync();
+
+        Assert.Single(chunks);
+        Assert.Equal("hello world", Assert.IsType<TextContent>(chunks[0].Content).Text);
+        Assert.Equal(2, chunks[0].TokenCount);
+    }
 }

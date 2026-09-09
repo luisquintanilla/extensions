@@ -41,6 +41,7 @@ public sealed class DocumentTokenChunker : IngestionChunker
         StringBuilder builder = new();
         List<(DocumentNode Node, int Start, int End)> sourceSegments = [];
         bool hasPreviousContent = false;
+        bool hasNewSourceContent = false;
 
         foreach (DocumentNode element in document.Document.EnumerateContent())
         {
@@ -87,6 +88,7 @@ public sealed class DocumentTokenChunker : IngestionChunker
                     {
                         int start = builder.Length;
                         _ = builder.Append(pointer, charsToAppend);
+                        hasNewSourceContent = true;
                         AddIntersectingSegments(sourceSegments, elementSegments, processedCharacters, charsToAppend, start);
                     }
                 }
@@ -101,6 +103,7 @@ public sealed class DocumentTokenChunker : IngestionChunker
             {
                 int start = builder.Length;
                 _ = builder.Append(remaining);
+                hasNewSourceContent = true;
                 AddIntersectingSegments(sourceSegments, elementSegments, processedCharacters, remaining.Length, start);
             }
 
@@ -108,7 +111,7 @@ public sealed class DocumentTokenChunker : IngestionChunker
             hasPreviousContent = true;
         }
 
-        if (builder.Length > 0)
+        if (builder.Length > 0 && hasNewSourceContent)
         {
             yield return FinalizeChunk();
         }
@@ -127,6 +130,7 @@ public sealed class DocumentTokenChunker : IngestionChunker
                 sources.GetPageNumbers());
             _ = builder.Clear();
             builderTokenCount = 0;
+            hasNewSourceContent = false;
 
             if (_chunkOverlap > 0)
             {
