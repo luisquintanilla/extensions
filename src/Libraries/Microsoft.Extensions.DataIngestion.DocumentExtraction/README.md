@@ -151,6 +151,7 @@ they are not quality or performance scores.
 | Production C# | +1,304 / -39 |
 | Test C# | +858 / -2 |
 | Top-level public source type declarations | +5 / -0 |
+| Added public API entries | 33 (24 MEDI, 8 integration, 1 extraction block kind) |
 
 ## Validation and limitations
 
