@@ -121,6 +121,36 @@ public class DocumentExtractionReaderTests
         Assert.Contains("neither non-empty content nor a caption", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task CaptionOnlyAndUnknownMediaImagesHaveExplicitChunkingBehavior()
+    {
+        DocumentExtractionReader reader = new(
+            CreateClient(
+                new(
+                [
+                    new DocumentPage(
+                        2,
+                        [
+                            new DocumentImage { Caption = "Caption-only image" },
+                            new DocumentImage { Content = new byte[] { 7, 8, 9 } },
+                        ]),
+                ]),
+                out _));
+
+        IngestionDocument document = await reader.ReadAsync(
+            new MemoryStream([1]),
+            "document",
+            "application/pdf");
+        IngestionDocumentImage[] images = document.EnumerateContent()
+            .OfType<IngestionDocumentImage>()
+            .ToArray();
+
+        Assert.Null(images[0].Content);
+        Assert.Equal("Caption-only image", images[0].AlternativeText);
+        Assert.Equal(3, images[1].Content!.Value.Length);
+        Assert.Null(images[1].MediaType);
+    }
+
     private static TestDocumentExtractionClient CreateClient(
         DocumentExtractionResult result,
         out Func<DocumentExtractionOptions?> getOptions)

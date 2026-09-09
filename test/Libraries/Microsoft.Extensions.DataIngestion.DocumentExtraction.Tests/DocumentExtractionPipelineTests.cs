@@ -124,6 +124,31 @@ public class DocumentExtractionPipelineTests
         Assert.Same(original, table.Cells[0, 0]);
     }
 
+    [Fact]
+    public async Task UnknownMediaImageBytesRemainMappedButAreNotEmittedAsDataContent()
+    {
+        DocumentExtractionResult result = new(
+        [
+            new DocumentPage(
+                1,
+                [new DocumentImage { Content = new byte[] { 7, 8, 9 } }]),
+        ]);
+        TestDocumentExtractionClient client = new()
+        {
+            ExtractAsyncCallback = (_, _, _, _) => Task.FromResult(result),
+        };
+        IngestionDocument document = await new DocumentExtractionReader(client).ReadAsync(
+            new MemoryStream([1]),
+            "document",
+            "application/pdf");
+
+        IngestionDocumentImage image = Assert.Single(
+            document.EnumerateContent().OfType<IngestionDocumentImage>());
+        Assert.Equal(3, image.Content!.Value.Length);
+        Assert.Null(image.MediaType);
+        Assert.Empty(await CreateChunker().ProcessAsync(document).ToListAsync());
+    }
+
     private static async Task<IngestionDocument> ReadFixtureAsync()
     {
         TestDocumentExtractionClient client = new()
