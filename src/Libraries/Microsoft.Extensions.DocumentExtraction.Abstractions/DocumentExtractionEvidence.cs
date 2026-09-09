@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
@@ -32,7 +33,20 @@ public sealed class DocumentExtractionEvidence
     public DocumentBoundingRegion? BoundingRegion { get; set; }
 
     /// <summary>Gets or sets extraction confidence in the range [0, 1], when available.</summary>
-    public double? Confidence { get; set; }
+    public double? Confidence
+    {
+        get;
+        set
+        {
+            if (value is double confidence &&
+                (double.IsNaN(confidence) || double.IsInfinity(confidence) || confidence < 0 || confidence > 1))
+            {
+                Throw.ArgumentOutOfRangeException(nameof(value), "Confidence must be finite and in the range [0, 1].");
+            }
+
+            field = value;
+        }
+    }
 
     /// <summary>Gets or sets the provider-native object underlying the node.</summary>
     [JsonIgnore]

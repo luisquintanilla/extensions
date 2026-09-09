@@ -28,4 +28,16 @@ public class DocumentExtractionEvidenceTests
         Assert.Throws<ArgumentException>("evidence", () => new DocumentPage(1, document, evidence: [new(new("missing"))]));
         Assert.Throws<ArgumentException>("evidence", () => new DocumentPage(1, document, evidence: [new(node.Id), new(node.Id)]));
     }
+
+    [Theory]
+    [InlineData(-0.1)]
+    [InlineData(1.1)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void ConfidenceMustBeNormalized(double confidence)
+    {
+        DocumentExtractionEvidence evidence = new(new("node"));
+
+        Assert.Throws<ArgumentOutOfRangeException>("value", () => evidence.Confidence = confidence);
+    }
 }
