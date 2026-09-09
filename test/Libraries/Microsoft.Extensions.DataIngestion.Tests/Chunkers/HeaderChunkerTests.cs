@@ -57,6 +57,26 @@ public class HeaderChunkerTests : DocumentChunkerTests
     }
 
     [Fact]
+    public async Task IncludesHeaderPagesWhenContextContributesToContent()
+    {
+        IngestionDocument doc = new("header-pages");
+        doc.Sections.Add(new()
+        {
+            Elements =
+            {
+                new IngestionDocumentHeader("Header") { Level = 1, PageNumber = 1 },
+                new IngestionDocumentParagraph("Paragraph") { PageNumber = 2 },
+            }
+        });
+
+        IngestionChunk chunk = Assert.Single(await CreateDocumentChunker()
+            .ProcessAsync(doc)
+            .ToListAsync());
+
+        Assert.Equal([1, 2], chunk.PageNumbers);
+    }
+
+    [Fact]
     public async Task CanRespectTokenLimit()
     {
         IngestionDocument doc = new("longOne");
