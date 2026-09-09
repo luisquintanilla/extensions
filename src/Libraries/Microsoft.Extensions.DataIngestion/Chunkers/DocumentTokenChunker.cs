@@ -64,32 +64,37 @@ public sealed class DocumentTokenChunker : IngestionChunker
             }
 
             int processedCharacters = 0;
-            int remainingTokenCount = _tokenizer.CountTokens(contentWithSeparator, considerNormalization: false);
             ReadOnlyMemory<char> remaining = contentWithSeparator.AsMemory();
-            while (builderTokenCount + remainingTokenCount >= _maxTokensPerChunk)
+            while (_tokenizer.CountTokens(builder.ToString() + remaining.ToString(), considerNormalization: false) >= _maxTokensPerChunk)
             {
+                string candidate = builder.ToString() + remaining.ToString();
                 int index = _tokenizer.GetIndexByTokenCount(
-                    remaining.Span,
-                    _maxTokensPerChunk - builderTokenCount,
+                    candidate,
+                    _maxTokensPerChunk,
                     out string? _,
-                    out int addedTokenCount,
+                    out int _,
                     considerNormalization: false);
+                int charsToAppend = index - builder.Length;
+                if (charsToAppend <= 0)
+                {
+                    yield return FinalizeChunk();
+                    continue;
+                }
 
                 unsafe
                 {
                     fixed (char* pointer = &MemoryMarshal.GetReference(remaining.Span))
                     {
                         int start = builder.Length;
-                        _ = builder.Append(pointer, index);
-                        AddIntersectingSegments(sourceSegments, elementSegments, processedCharacters, index, start);
+                        _ = builder.Append(pointer, charsToAppend);
+                        AddIntersectingSegments(sourceSegments, elementSegments, processedCharacters, charsToAppend, start);
                     }
                 }
 
-                builderTokenCount += addedTokenCount;
-                processedCharacters += index;
+                builderTokenCount = _tokenizer.CountTokens(builder.ToString(), considerNormalization: false);
+                processedCharacters += charsToAppend;
                 yield return FinalizeChunk();
-                remaining = remaining.Slice(index);
-                remainingTokenCount = _tokenizer.CountTokens(remaining.Span, considerNormalization: false);
+                remaining = remaining.Slice(charsToAppend);
             }
 
             if (!remaining.IsEmpty)
@@ -99,7 +104,7 @@ public sealed class DocumentTokenChunker : IngestionChunker
                 AddIntersectingSegments(sourceSegments, elementSegments, processedCharacters, remaining.Length, start);
             }
 
-            builderTokenCount += remainingTokenCount;
+            builderTokenCount = _tokenizer.CountTokens(builder.ToString(), considerNormalization: false);
             hasPreviousContent = true;
         }
 
@@ -112,10 +117,11 @@ public sealed class DocumentTokenChunker : IngestionChunker
         {
             DocumentNode[] sources = sourceSegments.Select(static segment => segment.Node).Distinct().ToArray();
             TextContent content = new(builder.ToString());
+            int tokenCount = _tokenizer.CountTokens(content.Text, considerNormalization: false);
             IngestionChunk chunk = new(
                 content,
                 document,
-                builderTokenCount,
+                tokenCount,
                 string.Empty,
                 sources.GetSourceNodeIds(),
                 sources.GetPageNumbers());

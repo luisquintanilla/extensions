@@ -78,4 +78,29 @@ public class SharedDocumentChunkerTests
         Assert.Equal([1, 2], chunk.PageNumbers);
         Assert.Equal(_tokenizer.CountTokens("hello\n\nworld", considerNormalization: false), chunk.TokenCount);
     }
+
+    [Fact]
+    public async Task ChunkersReportActualTokenCountsAndRespectMaximum()
+    {
+        IngestionDocument document = TestDocuments.Create(
+            "boundaries",
+            TestDocuments.Text("first", "."),
+            TestDocuments.Text("second", "hello"));
+
+        IngestionChunk tokenChunk = Assert.Single(
+            await new DocumentTokenChunker(new(_tokenizer) { MaxTokensPerChunk = 3, OverlapTokens = 0 })
+                .ProcessAsync(document)
+                .ToListAsync());
+        Assert.Equal(_tokenizer.CountTokens(Assert.IsType<TextContent>(tokenChunk.Content).Text, considerNormalization: false), tokenChunk.TokenCount);
+
+        var elementChunks = await new SectionChunker(new(_tokenizer) { MaxTokensPerChunk = 2 })
+            .ProcessAsync(TestDocuments.Create("elements", TestDocuments.Text("one", "hello"), TestDocuments.Text("two", "world")))
+            .ToListAsync();
+        Assert.All(elementChunks, chunk =>
+        {
+            string text = Assert.IsType<TextContent>(chunk.Content).Text;
+            Assert.Equal(_tokenizer.CountTokens(text, considerNormalization: false), chunk.TokenCount);
+            Assert.True(chunk.TokenCount <= 2);
+        });
+    }
 }

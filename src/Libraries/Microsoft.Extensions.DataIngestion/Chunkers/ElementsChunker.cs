@@ -52,10 +52,13 @@ internal sealed class ElementsChunker
                 continue;
             }
 
-            int elementTokenCount = CountTokens(semanticContent.AsSpan());
-            if (elementTokenCount + totalTokenCount <= _maxTokensPerChunk)
+            string candidate = _currentChunk.Length == 0
+                ? semanticContent
+                : _currentChunk.ToString() + "\n" + semanticContent;
+            int candidateTokenCount = CountTokens(candidate.AsSpan());
+            if (candidateTokenCount <= _maxTokensPerChunk)
             {
-                totalTokenCount += elementTokenCount;
+                totalTokenCount = candidateTokenCount;
                 AppendNewLineAndSpan(_currentChunk, semanticContent.AsSpan());
                 contributingNodes.AddRange(EnumerateNodeAndDescendants(element));
             }
@@ -90,40 +93,56 @@ internal sealed class ElementsChunker
                 ReadOnlySpan<char> remainingContent = semanticContent.AsSpan();
                 while (!remainingContent.IsEmpty)
                 {
-                    int index = _tokenizer.GetIndexByTokenCount(
-                        remainingContent,
-                        _maxTokensPerChunk - totalTokenCount,
-                        out string? _,
-                        out int tokenCount,
-                        considerNormalization: false);
-
-                    if (index > 0)
+                    string prefix = _currentChunk.Length == 0 ? string.Empty : "\n";
+                    string combined = _currentChunk.ToString() + prefix + remainingContent.ToString();
+                    int combinedTokenCount = CountTokens(combined.AsSpan());
+                    if (combinedTokenCount <= _maxTokensPerChunk)
                     {
-                        int newLineIndex = remainingContent.Slice(0, index).LastIndexOf('\n');
-                        if (newLineIndex > 0)
-                        {
-                            index = newLineIndex + 1;
-                            tokenCount = CountTokens(remainingContent.Slice(0, index));
-                        }
-
-                        totalTokenCount += tokenCount;
-                        AppendNewLineAndSpan(_currentChunk, remainingContent.Slice(0, index));
+                        _currentChunk.Append(prefix);
+#if NET
+                        _currentChunk.Append(remainingContent);
+#else
+                        _currentChunk.Append(remainingContent.ToString());
+#endif
+                        totalTokenCount = combinedTokenCount;
                         if (!contributingNodes.Contains(element))
                         {
                             contributingNodes.Add(element);
                         }
 
-                        remainingContent = remainingContent.Slice(index);
+                        remainingContent = [];
+                        break;
+                    }
+
+                    int index = _tokenizer.GetIndexByTokenCount(
+                        combined,
+                        _maxTokensPerChunk,
+                        out string? _,
+                        out int _,
+                        considerNormalization: false);
+                    int charsToAppend = index - _currentChunk.Length - prefix.Length;
+                    if (charsToAppend > 0)
+                    {
+                        _currentChunk.Append(prefix);
+#if NET
+                        _currentChunk.Append(remainingContent.Slice(0, charsToAppend));
+#else
+                        _currentChunk.Append(remainingContent.Slice(0, charsToAppend).ToString());
+#endif
+                        totalTokenCount = CountTokens(_currentChunk.ToString().AsSpan());
+                        if (!contributingNodes.Contains(element))
+                        {
+                            contributingNodes.Add(element);
+                        }
+
+                        remainingContent = remainingContent.Slice(charsToAppend);
                     }
                     else if (totalTokenCount == contextTokenCount)
                     {
                         ThrowTokenCountExceeded();
                     }
 
-                    if (!remainingContent.IsEmpty)
-                    {
-                        Commit();
-                    }
+                    Commit();
                 }
             }
 
