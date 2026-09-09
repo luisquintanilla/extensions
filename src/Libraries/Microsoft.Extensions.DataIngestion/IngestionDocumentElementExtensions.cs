@@ -31,6 +31,12 @@ internal static class IngestionDocumentElementExtensions
             return description;
         }
 
-        return element.GetMarkdown();
+        return element switch
+        {
+            IngestionDocumentCodeBlock => element.GetMarkdown(),
+            _ => element.IsLiteralText
+                ? element.Text
+                : element.GetMarkdown(),
+        };
     }
 }

@@ -78,6 +78,7 @@ public class VectorStoreWriter<TRecord> : IngestionChunkWriter
                 Content = chunk.Content,
                 Context = chunk.Context,
                 DocumentId = chunk.Document.Identifier,
+                PageNumbers = [.. chunk.PageNumbers],
             };
 
             if (chunk.HasMetadata)

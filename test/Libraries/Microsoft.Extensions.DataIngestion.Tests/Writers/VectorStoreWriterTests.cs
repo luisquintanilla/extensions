@@ -79,7 +79,12 @@ public abstract class VectorStoreWriterTests
         using VectorStoreWriter<IngestionChunkVectorRecord> writer = new(collection);
 
         IngestionDocument document = new(documentId);
-        IngestionChunk chunk = TestChunkFactory.CreateChunk("some content", document);
+        IngestionChunk chunk = new(
+            new TextContent("some content"),
+            document,
+            tokenCount: 2,
+            context: null,
+            pageNumbers: [2, 1, 2]);
 
         List<IngestionChunk> chunks = [chunk];
 
@@ -95,6 +100,8 @@ public abstract class VectorStoreWriterTests
         Assert.Equal(documentId, record.DocumentId);
         Assert.NotEmpty(record.SerializedContent!);
         Assert.Equal(((TextContent)chunks[0].Content).Text, ((TextContent)record.Content!).Text);
+        Assert.Equal([1, 2], record.PageNumbers);
+        Assert.Equal("1,2", record.SerializedPageNumbers);
         Assert.True(testEmbeddingGenerator.WasCalled);
     }
 
