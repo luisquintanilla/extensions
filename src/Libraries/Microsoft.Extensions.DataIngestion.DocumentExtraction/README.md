@@ -163,8 +163,16 @@ they are not quality or performance scores.
 - The base Document Extraction suites contribute 39 abstraction and 30 implementation tests per TFM.
 - The bridge contributes 8 tests per TFM; MEDI contributes 147 tests on modern TFMs and 137 on
   `net462`.
-- Real-provider projects are compile-only consumer gates. No live-provider, quality, performance, or
-  merge-readiness claim is made here.
+- Independently gated consumer:
+  [`iocrclient-demo` PR #1](https://github.com/luisquintanilla/iocrclient-demo/pull/1) at
+  [`aa55dfe6a6d297b7a3edaf9107007cefcc9f09f6`](https://github.com/luisquintanilla/iocrclient-demo/commit/aa55dfe6a6d297b7a3edaf9107007cefcc9f09f6).
+- Consumer results: feed provenance 6/6; top-level samples 17/17; real providers 4/4 compiled and
+  0/4 executed; deterministic output 12/12; hero projects 4/4; presentation site built.
+- The consumer executes the public fake client, 256/0 chunking, non-generic pipeline abstractions,
+  typed records, provider-driven embedding/upsert, two page-specific retrievals, Markdown policy,
+  PdfPig metadata, and polymorphic `TextContent` plus `DataContent` round trips.
+- No live-provider, OCR-quality, performance, arbitrary-environment archive reproducibility, or
+  merge-readiness claim is made.
 - `DocumentTokenChunker` remains intentionally structure-flattening for code.
 - Serialized page storage does not provide numeric page-range filtering.
 - A public mapper seam remains deferred until a second mapping policy demonstrates the need.
