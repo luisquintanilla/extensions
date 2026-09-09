@@ -155,7 +155,7 @@ they are not quality or performance scores.
 ## Validation and limitations
 
 - Filtered 100-project build: zero warnings and errors.
-- Author-run test matrix: 878 passed and 44 expected MarkItDown skips across `net462`, `net8.0`,
+- Author-run test matrix: 886 passed and 44 expected MarkItDown skips across `net462`, `net8.0`,
   `net9.0`, and `net10.0`.
 - `net8.0` and `net9.0` required clean per-TFM rebuilds after stale output folders omitted
   `xunit.abstractions.dll`; the rebuilt tests all passed.
