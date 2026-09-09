@@ -2,7 +2,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.VectorData;
@@ -75,6 +79,22 @@ public class IngestionChunkVectorRecord
     /// </summary>
     [VectorStoreData]
     public virtual string? Context { get; set; }
+
+    /// <summary>Gets or sets serialized physical page provenance.</summary>
+    [VectorStoreData(StorageName = "pagenumbers")]
+    public virtual string? SerializedPageNumbers { get; set; }
+
+    /// <summary>Gets or sets sorted, distinct physical page provenance.</summary>
+    [JsonIgnore]
+    public virtual IReadOnlyList<int> PageNumbers
+    {
+        get => string.IsNullOrEmpty(SerializedPageNumbers)
+            ? []
+            : SerializedPageNumbers.Split(',').Select(static value => int.Parse(value, CultureInfo.InvariantCulture)).ToArray();
+        set => SerializedPageNumbers = value is null || value.Count == 0
+            ? null
+            : string.Join(",", value.Distinct().OrderBy(static page => page).Select(static page => page.ToString(CultureInfo.InvariantCulture)));
+    }
 
     /// <summary>
     /// Gets the embedding value for this record.

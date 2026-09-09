@@ -4,7 +4,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Documents;
 using Microsoft.Shared.Diagnostics;
 
 namespace Microsoft.Extensions.DataIngestion;
@@ -30,12 +32,20 @@ public class IngestionChunk
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="tokenCount"/> is negative.
     /// </exception>
-    public IngestionChunk(AIContent content, IngestionDocument document, int tokenCount, string? context = null)
+    public IngestionChunk(
+        AIContent content,
+        IngestionDocument document,
+        int tokenCount,
+        string? context = null,
+        IEnumerable<DocumentNodeId>? sourceNodeIds = null,
+        IEnumerable<int>? pageNumbers = null)
     {
         Content = Throw.IfNull(content);
         Document = Throw.IfNull(document);
         Context = context;
         TokenCount = Throw.IfLessThanOrEqual(tokenCount, 0);
+        SourceNodeIds = sourceNodeIds?.Distinct().ToArray() ?? [];
+        PageNumbers = pageNumbers?.Distinct().OrderBy(static pageNumber => pageNumber).ToArray() ?? [];
     }
 
     /// <summary>
@@ -57,6 +67,12 @@ public class IngestionChunk
     /// Gets the number of tokens used to represent the chunk.
     /// </summary>
     public int TokenCount { get; }
+
+    /// <summary>Gets semantic source node identifiers contributing to this chunk.</summary>
+    public IReadOnlyList<DocumentNodeId> SourceNodeIds { get; }
+
+    /// <summary>Gets physical source page numbers contributing to this chunk.</summary>
+    public IReadOnlyList<int> PageNumbers { get; }
 
     /// <summary>
     /// Gets a value indicating whether this chunk has metadata.

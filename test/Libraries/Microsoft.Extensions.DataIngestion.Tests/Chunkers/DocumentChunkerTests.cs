@@ -26,7 +26,7 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers.Tests
         [Fact]
         public async Task EmptyDocument()
         {
-            IngestionDocument emptyDoc = new("emptyDoc");
+            IngestionDocument emptyDoc = TestDocuments.Create("emptyDoc");
             IngestionChunker chunker = CreateDocumentChunker();
 
             IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(emptyDoc).ToListAsync();

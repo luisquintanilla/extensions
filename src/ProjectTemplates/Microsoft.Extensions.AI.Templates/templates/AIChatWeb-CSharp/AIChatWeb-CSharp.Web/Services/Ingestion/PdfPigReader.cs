@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DataIngestion;
+using Microsoft.Extensions.Documents;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
@@ -11,32 +12,32 @@ internal sealed class PdfPigReader : IngestionDocumentReader
     public override Task<IngestionDocument> ReadAsync(Stream source, string identifier, string mediaType, CancellationToken cancellationToken = default)
     {
         using var pdf = PdfDocument.Open(source);
-        var document = new IngestionDocument(identifier);
+        var pages = new List<DocumentNode>();
         foreach (var page in pdf.GetPages())
         {
-            document.Sections.Add(GetPageSection(page));
+            pages.Add(GetPageSection(page));
         }
-        return Task.FromResult(document);
+        return Task.FromResult(new IngestionDocument(identifier, new Document(pages)));
     }
 
-    private static IngestionDocumentSection GetPageSection(Page pdfPage)
+    private static DocumentContainer GetPageSection(Page pdfPage)
     {
-        var section = new IngestionDocumentSection
-        {
-            PageNumber = pdfPage.Number,
-        };
-
         var letters = pdfPage.Letters;
         var words = NearestNeighbourWordExtractor.Instance.GetWords(letters);
-
+        var blocks = new List<DocumentNode>();
+        var blockIndex = 0;
         foreach (var textBlock in DocstrumBoundingBoxes.Instance.GetBlocks(words))
         {
-            section.Elements.Add(new IngestionDocumentParagraph(textBlock.Text)
-            {
-                Text = textBlock.Text
-            });
+            blocks.Add(new DocumentText(
+                new($"page-{pdfPage.Number}-block-{blockIndex++}"),
+                textBlock.Text,
+                pageReferences: [new(pdfPage.Number)]));
         }
 
-        return section;
+        return new DocumentContainer(
+            new($"page-{pdfPage.Number}"),
+            DocumentContainerRole.Section,
+            blocks,
+            pageReferences: [new(pdfPage.Number)]);
     }
 }

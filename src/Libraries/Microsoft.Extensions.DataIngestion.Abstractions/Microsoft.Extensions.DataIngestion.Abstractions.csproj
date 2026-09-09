@@ -20,6 +20,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Microsoft.Extensions.Documents.Abstractions\Microsoft.Extensions.Documents.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Microsoft.Extensions.AI.Abstractions\Microsoft.Extensions.AI.Abstractions.csproj" />
   </ItemGroup>
 
