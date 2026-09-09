@@ -102,7 +102,7 @@ These measurements compare implementation cost, not quality or performance.
 
 ## Package/feed attestation
 
-Evaluated source: `704a3e44ef4d7b053748780549fc2c8e929a444b`  
+Evaluated source: `704a3e44ef4d7b053748780549fc2c8e929a444b`
 Package version: `10.8.0-preview2neutral.704a3e4`
 
 ```text
