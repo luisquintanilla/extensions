@@ -2,10 +2,15 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.VectorData;
+using Microsoft.Shared.Diagnostics;
 
 namespace Microsoft.Extensions.DataIngestion;
 
@@ -22,6 +27,8 @@ namespace Microsoft.Extensions.DataIngestion;
 public class IngestionChunkVectorRecord
 {
     private AIContent? _content;
+    private IReadOnlyList<int>? _pageNumbers;
+    private string? _serializedPageNumbers;
 
     /// <summary>
     /// Gets or sets the unique key for this record.
@@ -77,6 +84,58 @@ public class IngestionChunkVectorRecord
     public virtual string? Context { get; set; }
 
     /// <summary>
+    /// Gets or sets the serialized one-based source page numbers that contributed to the chunk.
+    /// </summary>
+    [VectorStoreData]
+    public virtual string? SerializedPageNumbers
+    {
+        get => _serializedPageNumbers;
+        set
+        {
+            _serializedPageNumbers = value;
+            _pageNumbers = null;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the distinct one-based source page numbers that contributed to the chunk.
+    /// </summary>
+    /// <remarks>
+    /// The values are stored through <see cref="SerializedPageNumbers"/> because vector providers
+    /// do not consistently support integer-array data properties.
+    /// </remarks>
+    public virtual IReadOnlyList<int> PageNumbers
+    {
+        get
+        {
+            if (_pageNumbers is not null)
+            {
+                return _pageNumbers;
+            }
+
+            string? serializedPageNumbers = SerializedPageNumbers;
+            return _pageNumbers = string.IsNullOrEmpty(serializedPageNumbers)
+                ? Array.Empty<int>()
+#pragma warning disable EA0009 // The persisted representation is intentionally a simple provider-portable string.
+                : NormalizePageNumbers(serializedPageNumbers!
+                    .Split(',')
+                    .Select(value => int.Parse(value, CultureInfo.InvariantCulture)));
+#pragma warning restore EA0009
+        }
+        set
+        {
+            _pageNumbers = NormalizePageNumbers(value ?? []);
+            _serializedPageNumbers = _pageNumbers.Count == 0
+                ? null
+#pragma warning disable LA0002 // Avoid adding a shared-text dependency solely for this persisted representation.
+                : string.Join(
+                    ",",
+                    _pageNumbers.Select(value => value.ToString(CultureInfo.InvariantCulture)));
+#pragma warning restore LA0002
+        }
+    }
+
+    /// <summary>
     /// Gets the embedding value for this record.
     /// </summary>
     /// <remarks>
@@ -85,4 +144,17 @@ public class IngestionChunkVectorRecord
     /// the <see cref="VectorStoreVectorAttribute"/> with the appropriate dimension count.
     /// </remarks>
     public virtual AIContent? Embedding => Content;
+
+    private static ReadOnlyCollection<int> NormalizePageNumbers(IEnumerable<int> pageNumbers)
+    {
+        int[] normalized = pageNumbers.Distinct().OrderBy(pageNumber => pageNumber).ToArray();
+        if (Array.Exists(normalized, pageNumber => pageNumber <= 0))
+        {
+            Throw.ArgumentOutOfRangeException(
+                nameof(pageNumbers),
+                "Page numbers must contain only positive one-based values.");
+        }
+
+        return Array.AsReadOnly(normalized);
+    }
 }

@@ -96,7 +96,11 @@
       ],
       "Properties": [
         {
-          "Member": "static Microsoft.Extensions.DocumentExtraction.DocumentBlockKind Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Figure { get; }",
+         "Member": "static Microsoft.Extensions.DocumentExtraction.DocumentBlockKind Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Code { get; }",
+         "Stage": "Experimental"
+       },
+       {
+         "Member": "static Microsoft.Extensions.DocumentExtraction.DocumentBlockKind Microsoft.Extensions.DocumentExtraction.DocumentBlockKind.Figure { get; }",
           "Stage": "Experimental"
         },
         {
