@@ -33,7 +33,7 @@ public class ConfigureOptionsDocumentExtractionClientTests
     {
         DocumentExtractionOptions? providedOptions = nullProvidedOptions ? null : new() { ModelId = "test" };
         DocumentExtractionOptions? returnedOptions = null;
-        DocumentExtractionResult expectedResult = new([new DocumentPage(1, [new DocumentBlock("blue whale")])]);
+        DocumentExtractionResult expectedResult = new([TestDocument.Page(1, "blue whale")]);
         using CancellationTokenSource cts = new();
 
         using IDocumentExtractionClient innerClient = new TestDocumentExtractionClient
