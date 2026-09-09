@@ -37,6 +37,19 @@ public class IngestionChunkTests
     }
 
     [Fact]
+    public void ConstructorRejectsInvalidTypedProvenance()
+    {
+        IngestionDocument document = TestDocuments.Create("test");
+
+        Assert.Throws<ArgumentException>(
+            "sourceNodeIds",
+            () => new IngestionChunk(new TextContent("content"), document, 1, sourceNodeIds: [default]));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            "pageNumbers",
+            () => new IngestionChunk(new TextContent("content"), document, 1, pageNumbers: [0]));
+    }
+
+    [Fact]
     public void Constructor_ThrowsWhenTokenCountIsNegative()
     {
         IngestionDocument document = TestDocuments.Create("test");

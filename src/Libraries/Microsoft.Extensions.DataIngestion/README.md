@@ -8,6 +8,10 @@ The [Microsoft.Extensions.DataIngestion.Abstractions](https://www.nuget.org/pack
 
 The [Microsoft.Extensions.DataIngestion](https://www.nuget.org/packages/Microsoft.Extensions.DataIngestion) package has an implicit dependency on the `Microsoft.Extensions.DataIngestion.Abstractions` package. This package enables you to easily integrate components such as enrichment processors, vector storage writers, and telemetry into your applications using familiar dependency injection and pipeline patterns. For example, it provides the [`SentimentEnricher`](https://learn.microsoft.com/dotnet/api/microsoft.extensions.dataingestion.sentimentenricher), [`KeywordEnricher`](https://learn.microsoft.com/dotnet/api/microsoft.extensions.dataingestion.keywordenricher), and [`SummaryEnricher`](https://learn.microsoft.com/dotnet/api/microsoft.extensions.dataingestion.summaryenricher) processors that can be chained together in ingestion pipelines.
 
+Canonical document semantics come from `Microsoft.Extensions.Documents.Abstractions`. `IngestionDocument` adds ingestion identity and context around an immutable shared `Document`. The non-generic `IngestionChunk` boundary continues to use `AIContent` and a required `TokenCount`, and adds typed `SourceNodeIds` and `PageNumbers`.
+
+`VectorStoreWriter<TRecord>` retains Preview 2's typed `IngestionChunkVectorRecord` path and provider-configured embedding generation from polymorphic `AIContent`. The default record persists pages in nullable lowercase `pagenumbers` as sorted invariant comma-separated values. Existing collections may need migration or recreation. Source-node IDs are not persisted by the default record.
+
 ## Which package to reference
 
 Libraries that provide implementations of the abstractions typically reference only `Microsoft.Extensions.DataIngestion.Abstractions`.

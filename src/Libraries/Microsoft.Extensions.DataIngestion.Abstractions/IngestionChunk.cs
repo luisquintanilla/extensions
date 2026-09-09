@@ -44,8 +44,20 @@ public class IngestionChunk
         Document = Throw.IfNull(document);
         Context = context;
         TokenCount = Throw.IfLessThanOrEqual(tokenCount, 0);
-        SourceNodeIds = sourceNodeIds?.Distinct().ToArray() ?? [];
-        PageNumbers = pageNumbers?.Distinct().OrderBy(static pageNumber => pageNumber).ToArray() ?? [];
+        DocumentNodeId[] normalizedSourceNodeIds = sourceNodeIds?.Distinct().ToArray() ?? [];
+        if (normalizedSourceNodeIds.Any(static sourceNodeId => sourceNodeId == default))
+        {
+            Throw.ArgumentException(nameof(sourceNodeIds), "Source node identifiers cannot be empty.");
+        }
+
+        int[] normalizedPageNumbers = pageNumbers?.Distinct().OrderBy(static pageNumber => pageNumber).ToArray() ?? [];
+        if (normalizedPageNumbers.Any(static pageNumber => pageNumber <= 0))
+        {
+            Throw.ArgumentOutOfRangeException(nameof(pageNumbers), "Page numbers must be positive and one-based.");
+        }
+
+        SourceNodeIds = normalizedSourceNodeIds;
+        PageNumbers = normalizedPageNumbers;
     }
 
     /// <summary>

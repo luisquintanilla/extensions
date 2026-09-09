@@ -88,10 +88,14 @@ public class IngestionChunkVectorRecord
     [JsonIgnore]
     public virtual IReadOnlyList<int> PageNumbers
     {
-        get => string.IsNullOrEmpty(SerializedPageNumbers)
-            ? []
-            : SerializedPageNumbers.Split(',').Select(static value => int.Parse(value, CultureInfo.InvariantCulture)).ToArray();
-        set => SerializedPageNumbers = value is null || value.Count == 0
+        get
+        {
+            string? serialized = SerializedPageNumbers;
+            return string.IsNullOrEmpty(serialized)
+                ? []
+                : serialized.Split(',').Select(static value => int.Parse(value, CultureInfo.InvariantCulture)).ToArray();
+        }
+        set => SerializedPageNumbers = value.Count == 0
             ? null
             : string.Join(",", value.Distinct().OrderBy(static page => page).Select(static page => page.ToString(CultureInfo.InvariantCulture)));
     }
