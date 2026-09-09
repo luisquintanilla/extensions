@@ -40,6 +40,7 @@ public sealed class DocumentTokenChunker : IngestionChunker
         int builderTokenCount = 0;
         StringBuilder builder = new();
         List<(DocumentNode Node, int Start, int End)> sourceSegments = [];
+        bool hasPreviousContent = false;
 
         foreach (DocumentNode element in document.Document.EnumerateContent())
         {
@@ -50,11 +51,21 @@ public sealed class DocumentTokenChunker : IngestionChunker
                 continue;
             }
 
-            IReadOnlyList<(DocumentNode Node, int Start, int End)> elementSegments =
-                GetProjectionSourceSegments(element, elementContent!);
+            const string NodeSeparator = "\n\n";
+            int prefixLength = hasPreviousContent ? NodeSeparator.Length : 0;
+            string contentWithSeparator = hasPreviousContent ? NodeSeparator + elementContent : elementContent!;
+            List<(DocumentNode Node, int Start, int End)> elementSegments =
+                GetProjectionSourceSegments(element, elementContent!)
+                    .Select(segment => (segment.Node, segment.Start + prefixLength, segment.End + prefixLength))
+                    .ToList();
+            if (prefixLength > 0)
+            {
+                elementSegments.Add((element, 0, prefixLength));
+            }
+
             int processedCharacters = 0;
-            int remainingTokenCount = _tokenizer.CountTokens(elementContent!, considerNormalization: false);
-            ReadOnlyMemory<char> remaining = elementContent.AsMemory();
+            int remainingTokenCount = _tokenizer.CountTokens(contentWithSeparator, considerNormalization: false);
+            ReadOnlyMemory<char> remaining = contentWithSeparator.AsMemory();
             while (builderTokenCount + remainingTokenCount >= _maxTokensPerChunk)
             {
                 int index = _tokenizer.GetIndexByTokenCount(
@@ -89,6 +100,7 @@ public sealed class DocumentTokenChunker : IngestionChunker
             }
 
             builderTokenCount += remainingTokenCount;
+            hasPreviousContent = true;
         }
 
         if (builder.Length > 0)
