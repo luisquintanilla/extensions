@@ -16,6 +16,7 @@ namespace Microsoft.Extensions.Documents;
 [JsonDerivedType(typeof(DocumentTable), typeDiscriminator: "table")]
 [JsonDerivedType(typeof(DocumentTableCell), typeDiscriminator: "tableCell")]
 [JsonDerivedType(typeof(DocumentImage), typeDiscriminator: "image")]
+[JsonDerivedType(typeof(DocumentOpaque), typeDiscriminator: "opaque")]
 public abstract class DocumentNode
 {
     private protected DocumentNode(
@@ -29,7 +30,9 @@ public abstract class DocumentNode
         }
 
         Id = id;
-        PageReferences = CopyDistinct(pageReferences, static reference => reference.PageNumber);
+        // Page references are producer- or processor-supplied annotations. Preserve their
+        // order and multiplicity; consumers that need aggregation own that policy.
+        PageReferences = Copy(pageReferences);
         SourceNodeIds = CopyDistinct(sourceNodeIds ?? new[] { id }, static sourceId => sourceId);
 
         if (PageReferences.Any(static reference => reference.PageNumber <= 0))
@@ -46,7 +49,11 @@ public abstract class DocumentNode
     /// <summary>Gets the stable identifier of this node.</summary>
     public DocumentNodeId Id { get; }
 
-    /// <summary>Gets the physical source pages associated with this node.</summary>
+    /// <summary>Gets the producer- or processor-supplied physical source-page references, in supplied order.</summary>
+    /// <remarks>
+    /// The shared document contract does not infer, sort, or deduplicate page references. Consumers that need a
+    /// normalized page set must apply that policy outside this abstraction.
+    /// </remarks>
     public IReadOnlyList<DocumentPageReference> PageReferences { get; }
 
     /// <summary>Gets the source node identifiers from which this node was derived.</summary>

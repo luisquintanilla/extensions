@@ -346,6 +346,10 @@
         {
           "Member": "Microsoft.Extensions.DocumentExtraction.DocumentExtractionResult.DocumentExtractionResult(System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.DocumentExtraction.DocumentPage> pages);",
           "Stage": "Experimental"
+        },
+        {
+          "Member": "bool Microsoft.Extensions.DocumentExtraction.DocumentExtractionResult.TryGetEvidence(Microsoft.Extensions.Documents.DocumentNodeId nodeId, out Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence? evidence);",
+          "Stage": "Experimental"
         }
       ],
       "Properties": [
@@ -355,6 +359,10 @@
         },
         {
           "Member": "Microsoft.Extensions.Documents.Document Microsoft.Extensions.DocumentExtraction.DocumentExtractionResult.Document { get; }",
+          "Stage": "Experimental"
+        },
+        {
+          "Member": "System.Collections.Generic.IReadOnlyDictionary<Microsoft.Extensions.Documents.DocumentNodeId, Microsoft.Extensions.DocumentExtraction.DocumentExtractionEvidence> Microsoft.Extensions.DocumentExtraction.DocumentExtractionResult.Evidence { get; }",
           "Stage": "Experimental"
         },
         {

@@ -21,4 +21,4 @@ using VectorStoreWriter<IngestionChunkVectorRecord> writer = new(collection);
 await writer.WriteAsync(chunker.ProcessAsync(document));
 ```
 
-`DocumentExtractionReader` returns `new IngestionDocument(identifier, result.Document)`, preserving shared document identity. Provider Markdown, evidence, geometry, confidence, usage, progress, and raw state remain extraction-owned.
+`DocumentExtractionReader` returns an `IngestionDocument` that uses the exact shared `result.Document` instance. It also hands off the extraction-owned result through `document.TryGetExtractionResult(...)`, so downstream processors can look up evidence by node identity without copying geometry into the neutral tree or vector records. Provider Markdown, evidence, geometry, confidence, usage, progress, and raw state remain extraction-owned.

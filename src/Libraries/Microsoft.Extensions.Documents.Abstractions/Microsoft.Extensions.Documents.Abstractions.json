@@ -172,6 +172,34 @@
       ]
     },
     {
+      "Type": "sealed class Microsoft.Extensions.Documents.DocumentOpaque : Microsoft.Extensions.Documents.DocumentNode",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.Documents.DocumentOpaque.DocumentOpaque(Microsoft.Extensions.Documents.DocumentNodeId id, string logicalKind, int schemaVersion, int position, System.Text.Json.JsonElement payload, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentPageReference>? pageReferences = null, System.Collections.Generic.IReadOnlyList<Microsoft.Extensions.Documents.DocumentNodeId>? sourceNodeIds = null);",
+          "Stage": "Stable"
+        }
+      ],
+      "Properties": [
+        {
+          "Member": "string Microsoft.Extensions.Documents.DocumentOpaque.LogicalKind { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "System.Text.Json.JsonElement Microsoft.Extensions.Documents.DocumentOpaque.Payload { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "int Microsoft.Extensions.Documents.DocumentOpaque.Position { get; }",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "int Microsoft.Extensions.Documents.DocumentOpaque.SchemaVersion { get; }",
+          "Stage": "Stable"
+        }
+      ]
+    },
+    {
       "Type": "readonly struct Microsoft.Extensions.Documents.DocumentPageReference : System.IEquatable<Microsoft.Extensions.Documents.DocumentPageReference>",
       "Stage": "Stable",
       "Methods": [

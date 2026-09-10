@@ -42,6 +42,10 @@ public class DocumentExtractionReaderTests
         Assert.Equal("literal", result.Document.Text);
         Assert.Equal("# provider markdown", extraction.Pages[0].Markdown);
         Assert.Same(raw, extraction.Pages[0].Evidence[0].RawRepresentation);
+        Assert.True(result.TryGetExtractionResult(out DocumentExtractionResult? handedOff));
+        Assert.Same(extraction, handedOff);
+        Assert.True(handedOff!.TryGetEvidence(text.Id, out DocumentExtractionEvidence? evidence));
+        Assert.Same(raw, evidence!.RawRepresentation);
         Assert.Null(typeof(DocumentNode).GetProperty("Confidence"));
     }
 
@@ -74,6 +78,36 @@ public class DocumentExtractionReaderTests
         Assert.Contains(records, record => Assert.IsType<TextContent>(record.Content).Text == "first page" && record.SerializedPageNumbers == "1");
         Assert.Contains(records, record => Assert.IsType<TextContent>(record.Content).Text == "second page" && record.SerializedPageNumbers == "2");
         Assert.True(embeddingGenerator.WasCalled);
+    }
+
+    [Fact]
+    public async Task ExtractedDocument_UsesConfiguredProviderEmbedding()
+    {
+        DocumentExtractionResult extraction = new(
+        [
+            new DocumentPage(1, new Document([new DocumentText(new("text"), "embedded text", pageReferences: [new(1)])])),
+        ]);
+        using StubClient client = new(extraction);
+        IngestionDocument ingestion = await new DocumentExtractionReader(client)
+            .ReadAsync(new MemoryStream([1]), "embedded-fixture", "application/pdf");
+        SectionChunker chunker = new(new(TiktokenTokenizer.CreateForModel("gpt-4")) { MaxTokensPerChunk = 100 });
+        using TestEmbeddingGenerator<AIContent> embeddingGenerator = new();
+        using InMemoryVectorStore store = new(new() { EmbeddingGenerator = embeddingGenerator });
+        VectorStoreCollection<Guid, IngestionChunkVectorRecord> collection =
+            store.GetIngestionRecordCollection<IngestionChunkVectorRecord>(
+                "embedded-chunks", TestEmbeddingGenerator<AIContent>.DimensionCount);
+        using VectorStoreWriter<IngestionChunkVectorRecord> writer = new(collection);
+
+        await writer.WriteAsync(chunker.ProcessAsync(ingestion));
+
+        VectorSearchResult<IngestionChunkVectorRecord> match = await collection
+            .SearchAsync(new ReadOnlyMemory<float>([0, 1, 2, 3]), top: 1)
+            .SingleAsync();
+
+        Assert.True(embeddingGenerator.WasCalled);
+        Assert.Equal(1.0, Assert.IsType<double>(match.Score), precision: 6);
+        Assert.Equal("embedded-fixture", match.Record.DocumentId);
+        Assert.Equal("embedded text", Assert.IsType<TextContent>(match.Record.Content).Text);
     }
 
     private sealed class StubClient : IDocumentExtractionClient

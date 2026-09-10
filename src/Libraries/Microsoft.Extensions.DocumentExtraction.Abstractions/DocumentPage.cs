@@ -58,7 +58,7 @@ public class DocumentPage
     /// </remarks>
     public string Text => Document.Text;
 
-    /// <summary>Gets the canonical semantic document fragment extracted from this page.</summary>
+    /// <summary>Gets the canonical shared semantic document fragment extracted from this page.</summary>
     public Document Document { get; }
 
     /// <summary>Gets extraction evidence keyed by stable semantic node identifier.</summary>

@@ -14,7 +14,9 @@ The current implementation descends from `f6ba2df1`, whose parent is `e124c123`.
 
 ## Ownership
 
-`Microsoft.Extensions.Documents.Abstractions` owns one closed immutable semantic tree. Document Extraction owns operations, page envelopes, Markdown, usage/progress, geometry, confidence, evidence, properties, and raw provider state. MEDI owns ingestion identity/context, processors, non-generic chunkers/chunks/writers, pipeline orchestration, typed vector records, and persistence.
+`Microsoft.Extensions.Documents.Abstractions` owns one immutable semantic tree plus an explicit versioned opaque-node envelope. Document Extraction owns operations, page envelopes, Markdown, usage/progress, geometry, confidence, evidence, properties, and raw provider state. MEDI owns ingestion identity/context, processors, non-generic chunkers/chunks/writers, pipeline orchestration, typed vector records, and persistence.
+
+Page references in the shared tree are optional producer- or processor-supplied annotations. The shared abstraction copies them in supplied order and preserves multiplicity; it does not infer, sort, deduplicate, normalize provider numbering, or fabricate missing values. MEDI may derive its own sorted, distinct chunk-level `PageNumbers` projection outside the shared waist.
 
 Preview 2 contracts remain non-generic:
 
@@ -36,7 +38,7 @@ public class VectorStoreWriter<TRecord>
     where TRecord : IngestionChunkVectorRecord, new();
 ```
 
-`AIContent` remains the chunk boundary. Built-in semantic chunkers emit `TextContent`; callers may create non-text chunks such as `DataContent`. `TokenCount` remains required and positive.
+`AIContent` remains the chunk boundary. Built-in semantic chunkers emit `TextContent`; callers may create non-text chunks such as `DataContent`. `TokenCount` remains required and positive. Source-node and page projections are computed independently; no positional pairing is implied or persisted.
 
 ## Typed record persistence
 
@@ -62,14 +64,33 @@ Every changed MEDI file relative to `f6ba2df1` is required by the neutral archit
 | `DataIngestion/Writers/IngestionChunkVectorRecord.cs` | Typed page persistence without replacing automatic embeddings |
 | `DataIngestion/Writers/VectorStoreWriter.cs` | Copies typed chunk pages into the record |
 | `DataIngestion.Markdig/MarkdownParser.cs` | Authored producer for shared semantics |
+| `Documents.Abstractions/DocumentOpaque.cs` | Explicit versioned round-trip path for unsupported/provider-specific semantic nodes |
+| `DocumentExtraction.Abstractions/DocumentExtractionResult.cs` | Extraction-owned node evidence index and lookup without adding geometry to the shared tree |
+| `DataIngestion.DocumentExtraction/DocumentExtractionReader.cs` | Typed metadata handoff of the extraction result to downstream MEDI processors |
 
 Project references add only the neutral package. Non-generic pipeline contracts, `VectorStoreExtensions`, embedding generation, batch limits, incremental ingestion, and typed custom-record extensibility remain Preview 2 behavior.
 
 ## Exercised behavior
 
-Deterministic tests cover closed hierarchy, stable IDs, ordered recursive projection, polymorphic serialization, dimension-independent table validation, page/evidence validation, immutable image enrichment, recursive token/source provenance, authored Markdown, non-generic `TextContent` chunks, required token counts, non-text `DataContent`, polymorphic record round trips, provider-driven embeddings, page persistence, and extraction-to-retrieval composition.
+Deterministic tests cover stable IDs, ordered recursive projection, exact producer page-reference preservation, polymorphic serialization, the versioned opaque-node round trip and unknown-kind rejection, dimension-independent table validation, extraction-owned evidence lookup, immutable image enrichment, recursive token/source provenance, authored Markdown, non-generic `TextContent` chunks, required token counts, non-text `DataContent`, polymorphic record round trips, provider-driven embeddings, page persistence, and extraction-to-retrieval composition.
 
 Provider integrations are compile-only. No live-provider, quality, performance, or merge-readiness claim is made.
+
+## Preview 2 behavior coverage disposition
+
+The earlier focused behavior comparison showed a 75-to-58 test reduction after the competing element hierarchy was removed. This branch restores the applicable coverage as deterministic tests against the shared tree instead of deleting behavior coverage to make the neutral-tree demonstration pass.
+
+| Area | Disposition |
+|---|---|
+| Document token, overlap, and no-overlap chunking | Restored in `DocumentTokenChunkerTests`, `OverlapTokenChunkerTests`, and `NoOverlapTokenChunkerTests`, including exact boundaries, overlap-only terminal suppression, provenance, cancellation, and positive token counts. |
+| Header and section chunking | Restored in `HeaderChunkerTests` and `SectionChunkerTests`, including heading-stack reset, nested context, table row splitting, size failures, cancellation, and token limits. |
+| Semantic-similarity chunking | Restored in `SemanticSimilarityChunkerTests`, including topic boundaries, table projection, embedding-count failures, cancellation forwarding, and provider input order. |
+| Pipeline behavior | Restored in `IngestionPipelineTests` and contract tests for non-generic seams, mixed `TextContent`/`DataContent`, provider embeddings, activity tags, per-file failure isolation, disposal, and cancellation. |
+| Enrichment behavior | Existing classification, keyword, sentiment, and summary suites remain; image alternative-text batching, nested immutable rewrites, metadata/provenance preservation, mismatch, failure, and cancellation are covered in `AlternativeTextEnricherTests`. |
+| Persistence behavior | Existing InMemory/SQLite provider matrices remain; writer behavior tests cover typed records, polymorphic content, batching, incremental replacement ordering, metadata, page persistence, and failure/cancellation boundaries. |
+| Reader and provider conformance | Historical remote-document, live-provider, external-process, and MCP-server conformance cases remain intentionally excluded because they are nondeterministic in this workspace. Deterministic Markdown, MarkItDown argument, extraction-reader, and local provider paths remain covered. |
+
+The old `IngestionDocumentElement` hierarchy, its element-specific tests, and its extension helpers were not restored. Their applicable scenarios were ported to `Document`, `DocumentNode`, and `TestDocuments`; unsupported semantic content is represented by `DocumentOpaque` rather than silently projected as text.
 
 ## Same-base implementation comparison
 
@@ -120,6 +141,6 @@ The feed is staged as a handoff artifact. Its owner must repack or attest these 
 
 1. Should MEDI provide public immutable-tree rewrite helpers for processor authors?
 2. Should default records persist `SourceNodeIds` in addition to pages?
-3. What schema-version/evolution policy should govern serialized documents?
+3. `DocumentOpaque` now provides the experimental branch's explicit schema-version envelope; a future public evolution policy still needs review.
 4. Does streamed extraction need a provider hook for cross-page logical hierarchy?
 5. How should existing vector collections migrate to nullable `pagenumbers`?

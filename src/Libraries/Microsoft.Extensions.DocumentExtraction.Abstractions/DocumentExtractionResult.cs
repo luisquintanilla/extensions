@@ -16,8 +16,8 @@ namespace Microsoft.Extensions.DocumentExtraction;
 
 /// <summary>Represents the structured result of an OCR / document-parsing request.</summary>
 /// <remarks>
-/// The result normalizes the content common to every engine (text, pages, tables, bounding
-/// regions) while preserving everything provider-specific via
+/// The result normalizes the page envelopes, shared semantic document, and extraction evidence common to every engine
+/// while preserving everything provider-specific via
 /// <see cref="RawRepresentation"/> and <see cref="AdditionalProperties"/>, mirroring how
 /// <c>ChatResponse</c> normalizes the common surface and preserves the raw.
 /// </remarks>
@@ -46,13 +46,37 @@ public class DocumentExtractionResult
 
         Pages = new ReadOnlyCollection<DocumentPage>(orderedPages);
         Document = new(Pages.SelectMany(static page => page.Document.Children).ToArray());
+
+        Dictionary<DocumentNodeId, DocumentExtractionEvidence> evidenceByNodeId = [];
+        foreach (DocumentPage page in Pages)
+        {
+            foreach (DocumentExtractionEvidence evidence in page.Evidence)
+            {
+                if (evidenceByNodeId.ContainsKey(evidence.NodeId))
+                {
+                    Throw.ArgumentException(nameof(pages), $"Evidence for node '{evidence.NodeId}' is duplicated.");
+                }
+
+                evidenceByNodeId.Add(evidence.NodeId, evidence);
+            }
+        }
+
+        Evidence = new ReadOnlyDictionary<DocumentNodeId, DocumentExtractionEvidence>(evidenceByNodeId);
     }
 
-    /// <summary>Gets the per-page structured content (text, tables, blocks).</summary>
+    /// <summary>Gets the per-page structured content and extraction evidence.</summary>
     public IReadOnlyList<DocumentPage> Pages { get; }
 
     /// <summary>Gets the merged canonical semantic document.</summary>
     public Document Document { get; }
+
+    /// <summary>Gets extraction evidence keyed by the stable identifier of the corresponding document node.</summary>
+    /// <remarks>
+    /// This index is extraction-owned. It preserves provider geometry, confidence, raw representations, and additional
+    /// properties without adding those concerns to the shared semantic document tree.
+    /// </remarks>
+    [JsonIgnore]
+    public IReadOnlyDictionary<DocumentNodeId, DocumentExtractionEvidence> Evidence { get; }
 
     /// <summary>Gets the full-document text projected from <see cref="Document"/>.</summary>
     /// <remarks>
@@ -60,6 +84,13 @@ public class DocumentExtractionResult
     /// are not necessarily a complete provider-supplied document rendering.
     /// </remarks>
     public string Text => Document.Text;
+
+    /// <summary>Attempts to find extraction evidence for a document node.</summary>
+    /// <param name="nodeId">The stable identifier of the document node.</param>
+    /// <param name="evidence">The evidence associated with <paramref name="nodeId"/>, when present.</param>
+    /// <returns><see langword="true"/> when evidence was found; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetEvidence(DocumentNodeId nodeId, [NotNullWhen(true)] out DocumentExtractionEvidence? evidence) =>
+        Evidence.TryGetValue(nodeId, out evidence);
 
     /// <summary>Gets or sets usage details associated with the request.</summary>
     public DocumentExtractionUsage? Usage { get; set; }

@@ -24,6 +24,7 @@ public static class DocumentTextProjection
             DocumentContainer container => GetText(container.Children),
             DocumentTableCell cell => GetText(cell.Content),
             DocumentTable table => GetTableText(table),
+            DocumentOpaque => string.Empty,
             null => throw new System.ArgumentNullException(nameof(node)),
             _ => string.Empty,
         };

@@ -42,4 +42,59 @@ public class DocumentExtractionResultTests
         Assert.Throws<ArgumentOutOfRangeException>("pageNumber", () => new DocumentPage(0, new Document([])));
         Assert.Throws<ArgumentException>("pages", () => new DocumentExtractionResult([TestDocument.Page(1, "one"), TestDocument.Page(1, "duplicate")]));
     }
+
+    [Fact]
+    public void EvidenceIsIndexedByMergedDocumentNodeIdentity()
+    {
+        DocumentText first = new(new("first"), "one");
+        DocumentText second = new(new("second"), "two");
+        object raw = new();
+        DocumentExtractionResult result = new(
+        [
+            new DocumentPage(2, new Document([second]), evidence: [new(second.Id) { RawRepresentation = raw }]),
+            new DocumentPage(1, new Document([first]), evidence: [new(first.Id) { Confidence = 0.8 }]),
+        ]);
+
+        Assert.True(result.TryGetEvidence(second.Id, out DocumentExtractionEvidence? evidence));
+        Assert.Same(raw, evidence!.RawRepresentation);
+        Assert.Equal([first.Id, second.Id], result.Evidence.Keys.OrderBy(static id => id.Value));
+        Assert.False(result.TryGetEvidence(new("missing"), out _));
+        Assert.Null(typeof(DocumentNode).GetProperty("BoundingRegion"));
+    }
+
+    [Fact]
+    public void PageAndNodeEvidencePreserveProviderGeometryAndProperties()
+    {
+        DocumentText node = new(new("geometry"), "located");
+        object pageRaw = new();
+        object nodeRaw = new();
+        DocumentExtractionEvidence evidence = new(node.Id)
+        {
+            BoundingRegion = DocumentBoundingRegion.FromRectangle(3, 10, 20, 110, 220),
+            Confidence = 0.75,
+            RawRepresentation = nodeRaw,
+            AdditionalProperties = new() { ["providerNode"] = "value" },
+        };
+        DocumentPage page = new(3, new Document([node]), evidence: [evidence])
+        {
+            Dimensions = new(612, 792),
+            CoordinateUnit = DocumentCoordinateUnit.Point,
+            CoordinateOrigin = DocumentCoordinateOrigin.BottomLeft,
+            RawRepresentation = pageRaw,
+            AdditionalProperties = new() { ["providerPage"] = "value" },
+        };
+
+        DocumentExtractionResult result = new([page]);
+
+        Assert.Equal(new DocumentPageDimensions(612, 792), result.Pages[0].Dimensions);
+        Assert.Equal(DocumentCoordinateUnit.Point, result.Pages[0].CoordinateUnit);
+        Assert.Equal(DocumentCoordinateOrigin.BottomLeft, result.Pages[0].CoordinateOrigin);
+        Assert.Same(pageRaw, result.Pages[0].RawRepresentation);
+        Assert.Equal("value", result.Pages[0].AdditionalProperties!["providerPage"]);
+        Assert.True(result.TryGetEvidence(node.Id, out DocumentExtractionEvidence? indexed));
+        Assert.Equal(0.75, indexed!.Confidence);
+        Assert.Equal(3, indexed.BoundingRegion!.PageNumber);
+        Assert.Same(nodeRaw, indexed.RawRepresentation);
+        Assert.Equal("value", indexed.AdditionalProperties!["providerNode"]);
+    }
 }

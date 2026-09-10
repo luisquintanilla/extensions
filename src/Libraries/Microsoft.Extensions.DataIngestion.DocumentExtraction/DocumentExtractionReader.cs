@@ -12,6 +12,12 @@ namespace Microsoft.Extensions.DataIngestion;
 /// <summary>Reads source content through an <see cref="IDocumentExtractionClient"/> for a MEDI pipeline.</summary>
 public sealed class DocumentExtractionReader : IngestionDocumentReader
 {
+    /// <summary>
+    /// The metadata key used by <see cref="DocumentExtractionReaderExtensions.TryGetExtractionResult(IngestionDocument, out DocumentExtractionResult?)"/> to
+    /// hand the extraction-owned result to downstream processors without copying provider geometry into the shared tree.
+    /// </summary>
+    public const string ExtractionResultMetadataKey = "Microsoft.Extensions.DataIngestion.DocumentExtraction.Result";
+
     private readonly IDocumentExtractionClient _client;
     private readonly DocumentExtractionOptions? _options;
 
@@ -36,6 +42,8 @@ public sealed class DocumentExtractionReader : IngestionDocumentReader
         DocumentExtractionResult result = await _client
             .ExtractAsync(source, mediaType, _options?.Clone(), cancellationToken)
             .ConfigureAwait(false);
-        return new IngestionDocument(identifier, result.Document);
+        IngestionDocument ingestionDocument = new(identifier, result.Document);
+        ingestionDocument.Metadata[ExtractionResultMetadataKey] = result;
+        return ingestionDocument;
     }
 }

@@ -13,6 +13,23 @@
           "Member": "override System.Threading.Tasks.Task<Microsoft.Extensions.DataIngestion.IngestionDocument> Microsoft.Extensions.DataIngestion.DocumentExtractionReader.ReadAsync(System.IO.Stream source, string identifier, string mediaType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));",
           "Stage": "Stable"
         }
+      ],
+      "Fields": [
+        {
+          "Member": "const string Microsoft.Extensions.DataIngestion.DocumentExtractionReader.ExtractionResultMetadataKey",
+          "Stage": "Stable",
+          "Value": "Microsoft.Extensions.DataIngestion.DocumentExtraction.Result"
+        }
+      ]
+    },
+    {
+      "Type": "static class Microsoft.Extensions.DataIngestion.DocumentExtractionReaderExtensions",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "static bool Microsoft.Extensions.DataIngestion.DocumentExtractionReaderExtensions.TryGetExtractionResult(this Microsoft.Extensions.DataIngestion.IngestionDocument document, out Microsoft.Extensions.DocumentExtraction.DocumentExtractionResult? result);",
+          "Stage": "Stable"
+        }
       ]
     }
   ]
