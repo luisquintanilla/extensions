@@ -1,10 +1,12 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Documents;
 using Microsoft.ML.Tokenizers;
 using Xunit;
 
@@ -12,297 +14,283 @@ namespace Microsoft.Extensions.DataIngestion.Chunkers.Tests;
 
 public class HeaderChunkerTests : DocumentChunkerTests
 {
-    protected override IngestionChunker CreateDocumentChunker(int maxTokensPerChunk = 2_000, int overlapTokens = 500)
-        => new HeaderChunker(new(TiktokenTokenizer.CreateForModel("gpt-4")) { MaxTokensPerChunk = maxTokensPerChunk });
+    private static readonly Tokenizer _tokenizer = TiktokenTokenizer.CreateForModel("gpt-4");
+
+    protected override IngestionChunker CreateDocumentChunker(int maxTokensPerChunk = 2_000, int overlapTokens = 500) =>
+        new HeaderChunker(new(_tokenizer) { MaxTokensPerChunk = maxTokensPerChunk });
 
     [Fact]
-    public async Task CanChunkNonTrivialDocument()
+    public async Task ProcessAsync_NestedHeadingsCarryExpectedHeadingStack()
     {
-        IngestionDocument doc = new("nonTrivial");
-        doc.Sections.Add(new()
-        {
-            Elements =
-            {
-                new IngestionDocumentHeader("Header 1") { Level = 1 },
-                    new IngestionDocumentHeader("Header 1_1") { Level = 2 },
-                        new IngestionDocumentParagraph("Paragraph 1_1_1"),
-                        new IngestionDocumentHeader("Header 1_1_1") { Level = 3 },
-                            new IngestionDocumentParagraph("Paragraph 1_1_1_1"),
-                            new IngestionDocumentParagraph("Paragraph 1_1_1_2"),
-                        new IngestionDocumentHeader("Header 1_1_2") { Level = 3 },
-                            new IngestionDocumentParagraph("Paragraph 1_1_2_1"),
-                            new IngestionDocumentParagraph("Paragraph 1_1_2_2"),
-                    new IngestionDocumentHeader("Header 1_2") { Level = 2 },
-                        new IngestionDocumentParagraph("Paragraph 1_2_1"),
-                        new IngestionDocumentHeader("Header 1_2_1") { Level = 3 },
-                            new IngestionDocumentParagraph("Paragraph 1_2_1_1"),
-            }
-        });
+        IngestionDocument document = TestDocuments.Create(
+            "nested-headings",
+            TestDocuments.Text("h1", "Header 1", DocumentTextRole.Heading, 1, 1),
+            TestDocuments.Text("h2", "Header 1_1", DocumentTextRole.Heading, 2, 2),
+            TestDocuments.Text("body1", "Paragraph 1_1", pageNumber: 3),
+            TestDocuments.Text("h3", "Header 1_1_1", DocumentTextRole.Heading, 3, 4),
+            TestDocuments.Text("body2", "Paragraph 1_1_1", pageNumber: 5));
 
-        HeaderChunker chunker = new(new(TiktokenTokenizer.CreateForModel("gpt-4")));
-        IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(doc).ToListAsync();
-
-        Assert.Equal(5, chunks.Count);
-
-        Assert.Equal("Header 1 Header 1_1", chunks[0].Context);
-        Assert.Equal($"Header 1 Header 1_1\nParagraph 1_1_1", GetText(chunks[0]), ignoreLineEndingDifferences: true);
-        Assert.Equal("Header 1 Header 1_1 Header 1_1_1", chunks[1].Context);
-        Assert.Equal($"Header 1 Header 1_1 Header 1_1_1\nParagraph 1_1_1_1\nParagraph 1_1_1_2", GetText(chunks[1]), ignoreLineEndingDifferences: true);
-        Assert.Equal("Header 1 Header 1_1 Header 1_1_2", chunks[2].Context);
-        Assert.Equal($"Header 1 Header 1_1 Header 1_1_2\nParagraph 1_1_2_1\nParagraph 1_1_2_2", GetText(chunks[2]), ignoreLineEndingDifferences: true);
-        Assert.Equal("Header 1 Header 1_2", chunks[3].Context);
-        Assert.Equal($"Header 1 Header 1_2\nParagraph 1_2_1", GetText(chunks[3]), ignoreLineEndingDifferences: true);
-        Assert.Equal("Header 1 Header 1_2 Header 1_2_1", chunks[4].Context);
-        Assert.Equal($"Header 1 Header 1_2 Header 1_2_1\nParagraph 1_2_1_1", GetText(chunks[4]), ignoreLineEndingDifferences: true);
-    }
-
-    [Fact]
-    public async Task CanRespectTokenLimit()
-    {
-        IngestionDocument doc = new("longOne");
-        doc.Sections.Add(new()
-        {
-            Elements =
-            {
-                new IngestionDocumentHeader("Header A") { Level = 1 },
-                    new IngestionDocumentHeader("Header B") { Level = 2 },
-                        new IngestionDocumentHeader("Header C") { Level = 3 },
-                            new IngestionDocumentParagraph("This is a very long text. It's expressed with plenty of tokens")
-            }
-        });
-
-        HeaderChunker chunker = new(new(TiktokenTokenizer.CreateForModel("gpt-4")) { MaxTokensPerChunk = 13 });
-        IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(doc).ToListAsync();
+        IReadOnlyList<IngestionChunk> chunks = await CreateDocumentChunker().ProcessAsync(document).ToListAsync();
 
         Assert.Equal(2, chunks.Count);
-        Assert.Equal("Header A Header B Header C", chunks[0].Context);
-        Assert.Equal($"Header A Header B Header C\nThis is a very long text.", GetText(chunks[0]), ignoreLineEndingDifferences: true);
-        Assert.Equal("Header A Header B Header C", chunks[1].Context);
-        Assert.Equal($"Header A Header B Header C\n It's expressed with plenty of tokens", GetText(chunks[1]), ignoreLineEndingDifferences: true);
+        ChunkerTestAssertions.Equal(
+            chunks[0],
+            document,
+            "Header 1 Header 1_1\nParagraph 1_1",
+            "Header 1 Header 1_1",
+            ["h1", "h2", "body1"],
+            [1, 2, 3],
+            _tokenizer);
+        ChunkerTestAssertions.Equal(
+            chunks[1],
+            document,
+            "Header 1 Header 1_1 Header 1_1_1\nParagraph 1_1_1",
+            "Header 1 Header 1_1 Header 1_1_1",
+            ["h1", "h2", "h3", "body2"],
+            [1, 2, 4, 5],
+            _tokenizer);
+        Assert.Equal(["Header 1 Header 1_1", "Header 1 Header 1_1 Header 1_1_1"], chunks.Select(static chunk => chunk.Context));
     }
 
     [Fact]
-    public async Task ThrowsWhenLimitIsTooLowToFitAnythingMoreThanContext()
+    public async Task ProcessAsync_ResetsSiblingHeadingContext()
     {
-        IngestionDocument doc = new("longOne");
-        doc.Sections.Add(new()
-        {
-            Elements =
-            {
-                new IngestionDocumentHeader("Header A") { Level = 1 }, // 2 tokens
-                    new IngestionDocumentHeader("Header B") { Level = 2 }, // 2 tokens
-                        new IngestionDocumentHeader("Header C") { Level = 3 }, // 2 tokens
-                            new IngestionDocumentParagraph("This is a very long text. It's expressed with plenty of tokens")
-            }
-        });
+        IngestionDocument document = TestDocuments.Create(
+            "siblings",
+            TestDocuments.Text("h1", "Root", DocumentTextRole.Heading, 1, 1),
+            TestDocuments.Text("h2a", "First", DocumentTextRole.Heading, 2, 2),
+            TestDocuments.Text("body1", "alpha", pageNumber: 3),
+            TestDocuments.Text("h2b", "Second", DocumentTextRole.Heading, 2, 4),
+            TestDocuments.Text("body2", "beta", pageNumber: 5));
 
-        HeaderChunker lessThanContext = new(new(TiktokenTokenizer.CreateForModel("gpt-4")) { MaxTokensPerChunk = 5 });
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lessThanContext.ProcessAsync(doc).ToListAsync());
-
-        HeaderChunker sameAsContext = new(new(TiktokenTokenizer.CreateForModel("gpt-4")) { MaxTokensPerChunk = 6 });
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await sameAsContext.ProcessAsync(doc).ToListAsync());
-    }
-
-    [Fact]
-    public async Task CanSplitLongerParagraphsOnNewLine()
-    {
-        IngestionDocument doc = new("withNewLines");
-        doc.Sections.Add(new()
-        {
-            Elements =
-            {
-                new IngestionDocumentHeader("Header A") { Level = 1 },
-                    new IngestionDocumentHeader("Header B") { Level = 2 },
-                        new IngestionDocumentHeader("Header C") { Level = 3 },
-                            new IngestionDocumentParagraph("This is a very long text. It's expressed with plenty of tokens. And it contains a new line.\nWith some text after the new line."),
-                            new IngestionDocumentParagraph("And following paragraph.")
-            }
-        });
-
-        HeaderChunker chunker = new(new(TiktokenTokenizer.CreateForModel("gpt-4")) { MaxTokensPerChunk = 30 });
-        IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(doc).ToListAsync();
+        IReadOnlyList<IngestionChunk> chunks = await CreateDocumentChunker().ProcessAsync(document).ToListAsync();
 
         Assert.Equal(2, chunks.Count);
-        Assert.Equal("Header A Header B Header C", chunks[0].Context);
-        Assert.Equal($"Header A Header B Header C\nThis is a very long text. It's expressed with plenty of tokens. And it contains a new line.\n",
-            GetText(chunks[0]), ignoreLineEndingDifferences: true);
-        Assert.Equal("Header A Header B Header C", chunks[1].Context);
-        Assert.Equal($"Header A Header B Header C\nWith some text after the new line.\nAnd following paragraph.", GetText(chunks[1]), ignoreLineEndingDifferences: true);
+        ChunkerTestAssertions.Equal(chunks[0], document, "Root First\nalpha", "Root First", ["h1", "h2a", "body1"], [1, 2, 3], _tokenizer);
+        ChunkerTestAssertions.Equal(chunks[1], document, "Root Second\nbeta", "Root Second", ["h1", "h2b", "body2"], [1, 4, 5], _tokenizer);
+        Assert.DoesNotContain("First", GetText(chunks[1]), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ThrowsWhenHeaderSeparatorAndSingleRowExceedTokenLimit()
+    public async Task ProcessAsync_LowerLevelSiblingClearsDeeperHeadingContext()
     {
-        IngestionDocument document = CreateDocumentWithLargeTable();
+        IngestionDocument document = TestDocuments.Create(
+            "nested-siblings",
+            TestDocuments.Text("h1", "Root", DocumentTextRole.Heading, 1, 1),
+            TestDocuments.Text("h2a", "First", DocumentTextRole.Heading, 2, 2),
+            TestDocuments.Text("h3", "Deep", DocumentTextRole.Heading, 3, 3),
+            TestDocuments.Text("body1", "alpha", pageNumber: 4),
+            TestDocuments.Text("h2b", "Second", DocumentTextRole.Heading, 2, 5),
+            TestDocuments.Text("body2", "beta", pageNumber: 6));
 
-        // It takes 38 tokens to represent Headers, Separator and the first Row.
-        HeaderChunker chunker = new(new(TiktokenTokenizer.CreateForModel("gpt-4")) { MaxTokensPerChunk = 37 });
-
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await chunker.ProcessAsync(document).ToListAsync());
-    }
-
-    [Fact]
-    public async Task CanSplitLargeTableIntoMultipleChunks_MultipleRowsPerChunk()
-    {
-        IngestionDocument document = CreateDocumentWithLargeTable();
-
-        HeaderChunker chunker = new(new(TiktokenTokenizer.CreateForModel("gpt-4")) { MaxTokensPerChunk = 100 });
-        IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(document).ToListAsync();
+        IReadOnlyList<IngestionChunk> chunks = await CreateDocumentChunker().ProcessAsync(document).ToListAsync();
 
         Assert.Equal(2, chunks.Count);
-        Assert.All(chunks, chunk => Assert.Equal("Header A", chunk.Context));
-        Assert.Equal("""
-            Header A
-            This is some text that describes why we need the following table.
-            | one | two | three | four | five |
-            | --- | --- | --- | --- | --- |
-            | 0 | 1 | 2 | 3 | 4 |
-            | 5 | 6 | 7 | 8 | 9 |
-            | 10 | 11 | 12 | 13 | 14 |
-            """, GetText(chunks[0]), ignoreLineEndingDifferences: true);
-        Assert.Equal("""
-            Header A
-            | one | two | three | four | five |
-            | --- | --- | --- | --- | --- |
-            | 15 | 16 | 17 | 18 | 19 |
-            | 20 | 21 | 22 | 23 | 24 |
-            And some follow up.
-            """, GetText(chunks[1]), ignoreLineEndingDifferences: true);
+        ChunkerTestAssertions.Equal(
+            chunks[0],
+            document,
+            "Root First Deep\nalpha",
+            "Root First Deep",
+            ["h1", "h2a", "h3", "body1"],
+            [1, 2, 3, 4],
+            _tokenizer);
+        ChunkerTestAssertions.Equal(
+            chunks[1],
+            document,
+            "Root Second\nbeta",
+            "Root Second",
+            ["h1", "h2b", "body2"],
+            [1, 5, 6],
+            _tokenizer);
+        Assert.DoesNotContain("First", GetText(chunks[1]), StringComparison.Ordinal);
+        Assert.DoesNotContain("Deep", GetText(chunks[1]), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task CanSplitLargeTableIntoMultipleChunks_OneRowPerChunk()
+    public async Task ProcessAsync_SplitsLongTextOnNewlineWithinTokenLimit()
     {
-        IngestionDocument document = CreateDocumentWithLargeTable();
+        IngestionDocument document = TestDocuments.Create(
+            "newlines",
+            TestDocuments.Text("h1", "Header A", DocumentTextRole.Heading, 1, 1),
+            TestDocuments.Text("h2", "Header B", DocumentTextRole.Heading, 2, 1),
+            TestDocuments.Text("h3", "Header C", DocumentTextRole.Heading, 3, 1),
+            TestDocuments.Text(
+                "body",
+                "This is a very long text. It's expressed with plenty of tokens. And it contains a new line.\nWith some text after the new line.",
+                pageNumber: 2),
+            TestDocuments.Text("tail", "And following paragraph.", pageNumber: 3));
 
-        Tokenizer tokenizer = TiktokenTokenizer.CreateForModel("gpt-4");
-        HeaderChunker chunker = new(new(tokenizer) { MaxTokensPerChunk = 50 });
-        IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(document).ToListAsync();
+        IReadOnlyList<IngestionChunk> chunks = await CreateDocumentChunker(maxTokensPerChunk: 29).ProcessAsync(document).ToListAsync();
 
-        Assert.Equal(6, chunks.Count);
-        Assert.All(chunks, chunk => Assert.Equal("Header A", chunk.Context));
-        Assert.All(chunks, chunk => Assert.InRange(tokenizer.CountTokens(GetText(chunk)), 1, 50));
-
-        Assert.Equal("""
-            Header A
-            This is some text that describes why we need the following table.
-            """, GetText(chunks[0]), ignoreLineEndingDifferences: true);
-        Assert.Equal("""
-            Header A
-            | one | two | three | four | five |
-            | --- | --- | --- | --- | --- |
-            | 0 | 1 | 2 | 3 | 4 |
-            """, GetText(chunks[1]), ignoreLineEndingDifferences: true);
-        Assert.Equal("""
-            Header A
-            | one | two | three | four | five |
-            | --- | --- | --- | --- | --- |
-            | 5 | 6 | 7 | 8 | 9 |
-            """, GetText(chunks[2]), ignoreLineEndingDifferences: true);
-        Assert.Equal("""
-            Header A
-            | one | two | three | four | five |
-            | --- | --- | --- | --- | --- |
-            | 10 | 11 | 12 | 13 | 14 |
-            """, GetText(chunks[3]), ignoreLineEndingDifferences: true);
-        Assert.Equal("""
-            Header A
-            | one | two | three | four | five |
-            | --- | --- | --- | --- | --- |
-            | 15 | 16 | 17 | 18 | 19 |
-            """, GetText(chunks[4]), ignoreLineEndingDifferences: true);
-        Assert.Equal("""
-            Header A
-            | one | two | three | four | five |
-            | --- | --- | --- | --- | --- |
-            | 20 | 21 | 22 | 23 | 24 |
-            And some follow up.
-            """, GetText(chunks[5]), ignoreLineEndingDifferences: true);
+        Assert.Equal(2, chunks.Count);
+        const string Context = "Header A Header B Header C";
+        ChunkerTestAssertions.Equal(
+            chunks[0],
+            document,
+            Context + "\nThis is a very long text. It's expressed with plenty of tokens. And it contains a new line.\n",
+            Context,
+            ["h1", "h2", "h3", "body"],
+            [1, 2],
+            _tokenizer);
+        ChunkerTestAssertions.Equal(
+            chunks[1],
+            document,
+            Context + "\nWith some text after the new line.\nAnd following paragraph.",
+            Context,
+            ["h1", "h2", "h3", "body", "tail"],
+            [1, 2, 3],
+            _tokenizer);
+        Assert.EndsWith("\n", GetText(chunks[0]), StringComparison.Ordinal);
     }
 
-    private static IngestionDocument CreateDocumentWithLargeTable()
+    [Fact]
+    public async Task ProcessAsync_ContextLargerThanLimit_FailsDeterministically()
     {
-        IngestionDocumentTable table = new("""
-            | one | two | three | four | five |
-            | --- | --- | --- | --- | --- |
-            | 0 | 1 | 2 | 3 | 4 |
-            | 5 | 6 | 7 | 8 | 9 |
-            | 10 | 11 | 12 | 13 | 14 |
-            | 15 | 16 | 17 | 18 | 19 |
-            | 20 | 21 | 22 | 23 | 24 |
-            """, CreateTableCells()
-);
+        const string Context = "Header A Header B Header C";
+        int contextTokenCount = _tokenizer.CountTokens(Context, considerNormalization: false);
+        IngestionDocument document = TestDocuments.Create(
+            "context-limit",
+            TestDocuments.Text("h1", "Header A", DocumentTextRole.Heading, 1),
+            TestDocuments.Text("h2", "Header B", DocumentTextRole.Heading, 2),
+            TestDocuments.Text("h3", "Header C", DocumentTextRole.Heading, 3),
+            TestDocuments.Text("body", "body"));
 
-        IngestionDocument doc = new("withNewLines");
-        doc.Sections.Add(new()
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await CreateDocumentChunker(maxTokensPerChunk: contextTokenCount).ProcessAsync(document).ToListAsync());
+
+        Assert.Equal("Can't fit in the current chunk. Consider increasing max tokens per chunk.", exception.Message);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_MultiRowTableSplitsAtRowBoundaries()
+    {
+        DocumentTable table = CreateTable(includeSecondDataRow: true);
+        IngestionDocument document = TestDocuments.Create(
+            "multi-row",
+            TestDocuments.Text("heading", "H", DocumentTextRole.Heading, 1, 1),
+            table);
+
+        IReadOnlyList<IngestionChunk> chunks = await CreateDocumentChunker(maxTokensPerChunk: 8).ProcessAsync(document).ToListAsync();
+
+        Assert.Equal(2, chunks.Count);
+        ChunkerTestAssertions.Equal(
+            chunks[0],
+            document,
+            "H\nName\tValue\nA\t1",
+            "H",
+            ["heading", "table", "name-cell", "name", "value-cell", "value", "a-cell", "a", "one-cell", "one"],
+            [1, 2],
+            _tokenizer);
+        ChunkerTestAssertions.Equal(
+            chunks[1],
+            document,
+            "H\nName\tValue\nB\t2",
+            "H",
+            ["heading", "table", "name-cell", "name", "value-cell", "value", "b-cell", "b", "two-cell", "two"],
+            [1, 3],
+            _tokenizer);
+        Assert.Equal(["A\t1", "B\t2"], chunks.Select(chunk => GetText(chunk).Split('\n').Last()));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_OneRowTableUsesNeutralTabSeparatedProjection()
+    {
+        DocumentTable table = new(
+            new("table"),
+            1,
+            2,
+            [
+                Cell("left-cell", 0, 0, "left", "left", DocumentTableCellRole.Content, 4),
+                Cell("right-cell", 0, 1, "right", "right", DocumentTableCellRole.Content, 5),
+            ]);
+        IngestionDocument document = TestDocuments.Create(
+            "one-row",
+            TestDocuments.Text("heading", "H", DocumentTextRole.Heading, 1, 1),
+            table);
+
+        IngestionChunk chunk = Assert.Single(await CreateDocumentChunker(maxTokensPerChunk: 100).ProcessAsync(document).ToListAsync());
+
+        ChunkerTestAssertions.Equal(chunk, document, "H\nleft\tright", "H", ["heading", "table", "left-cell", "left", "right-cell", "right"], [1, 4, 5], _tokenizer);
+        Assert.DoesNotContain('|', GetText(chunk));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_OversizedTableRow_FailsDeterministically()
+    {
+        DocumentTable table = new(
+            new("table"),
+            1,
+            1,
+            [Cell("cell", 0, 0, "text", "this row is much too large", DocumentTableCellRole.Content, 2)]);
+        IngestionDocument document = TestDocuments.Create(
+            "oversized-row",
+            TestDocuments.Text("heading", "H", DocumentTextRole.Heading, 1, 1),
+            table);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await CreateDocumentChunker(maxTokensPerChunk: 3).ProcessAsync(document).ToListAsync());
+
+        Assert.Equal("Can't fit in the current chunk. Consider increasing max tokens per chunk.", exception.Message);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_EveryChunkHasExactPositiveTokenCount()
+    {
+        IngestionDocument document = TestDocuments.Create(
+            "counts",
+            TestDocuments.Text("heading", "Report", DocumentTextRole.Heading, 1, 1),
+            TestDocuments.Text("body", "alpha beta", pageNumber: 2));
+
+        IngestionChunk chunk = Assert.Single(await CreateDocumentChunker(maxTokensPerChunk: 100).ProcessAsync(document).ToListAsync());
+
+        ChunkerTestAssertions.Equal(chunk, document, "Report\nalpha beta", "Report", ["heading", "body"], [1, 2], _tokenizer);
+        Assert.InRange(chunk.TokenCount, 1, 100);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_PreCanceledToken_StopsPacking()
+    {
+        IngestionDocument document = TestDocuments.Create("canceled", TestDocuments.Text("body", "alpha", pageNumber: 1));
+        using CancellationTokenSource cancellationSource = new();
+        cancellationSource.Cancel();
+
+        OperationCanceledException exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await CreateDocumentChunker().ProcessAsync(document, cancellationSource.Token).ToListAsync());
+
+        Assert.Equal(cancellationSource.Token, exception.CancellationToken);
+    }
+
+    private static DocumentTable CreateTable(bool includeSecondDataRow)
+    {
+        List<DocumentTableCell> cells =
+        [
+            Cell("name-cell", 0, 0, "name", "Name", DocumentTableCellRole.ColumnHeader, 1),
+            Cell("value-cell", 0, 1, "value", "Value", DocumentTableCellRole.ColumnHeader, 1),
+            Cell("a-cell", 1, 0, "a", "A", DocumentTableCellRole.Content, 2),
+            Cell("one-cell", 1, 1, "one", "1", DocumentTableCellRole.Content, 2),
+        ];
+        if (includeSecondDataRow)
         {
-            Elements =
-            {
-                new IngestionDocumentHeader("Header A") { Level = 1 },
-                    new IngestionDocumentParagraph("This is some text that describes why we need the following table."),
-                    table,
-                    new IngestionDocumentParagraph("And some follow up.")
-            }
-        });
-
-        return doc;
-
-        static IngestionDocumentElement?[,] CreateTableCells()
-        {
-            var cells = new IngestionDocumentElement[6, 5]; // 6 rows (1 header + 5 data rows), 5 columns
-
-            // Header row
-            cells[0, 0] = new IngestionDocumentParagraph("one");
-            cells[0, 1] = new IngestionDocumentParagraph("two");
-            cells[0, 2] = new IngestionDocumentParagraph("three");
-            cells[0, 3] = new IngestionDocumentParagraph("four");
-            cells[0, 4] = new IngestionDocumentParagraph("five");
-
-            // Data rows (0-29)
-            int number = 0;
-            for (int row = 1; row <= 5; row++)
-            {
-                for (int col = 0; col < 5; col++)
-                {
-                    cells[row, col] = new IngestionDocumentParagraph(number.ToString());
-                    number++;
-                }
-            }
-
-            return cells;
+            cells.Add(Cell("b-cell", 2, 0, "b", "B", DocumentTableCellRole.Content, 3));
+            cells.Add(Cell("two-cell", 2, 1, "two", "2", DocumentTableCellRole.Content, 3));
         }
+
+        return new(new("table"), includeSecondDataRow ? 3 : 2, 2, cells);
     }
 
-    [Fact]
-    public async Task VerifyTokenCountIsSet()
-    {
-        IngestionDocument doc = new("tokenCountTest");
-        doc.Sections.Add(new()
-        {
-            Elements =
-            {
-                new IngestionDocumentHeader("Header 1") { Level = 1 },
-                new IngestionDocumentParagraph("This is a test paragraph with some content."),
-                new IngestionDocumentParagraph("This is another paragraph with more content.")
-            }
-        });
-
-        Tokenizer tokenizer = TiktokenTokenizer.CreateForModel("gpt-4");
-        HeaderChunker chunker = new(new(tokenizer));
-        IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(doc).ToListAsync();
-
-        foreach (IngestionChunk chunk in chunks)
-        {
-            // Verify that TokenCount property is set and greater than zero
-            Assert.True(chunk.TokenCount > 0);
-
-            // Verify that TokenCount matches actual token count of content
-            int actualTokenCount = tokenizer.CountTokens(GetText(chunk), considerNormalization: false);
-            Assert.Equal(actualTokenCount, chunk.TokenCount);
-        }
-    }
-
-    // We need plenty of more tests here, especially for edge cases:
-    // - sentence splitting
-    // - markdown splitting (e.g. lists, code blocks etc.)
+    private static DocumentTableCell Cell(
+        string cellId,
+        int row,
+        int column,
+        string textId,
+        string text,
+        DocumentTableCellRole role,
+        int pageNumber) =>
+        new(
+            new(cellId),
+            row,
+            column,
+            [TestDocuments.Text(textId, text, pageNumber: pageNumber)],
+            role: role,
+            pageReferences: [new(pageNumber)]);
 }

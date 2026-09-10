@@ -1,16 +1,16 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Documents;
 using Microsoft.ML.Tokenizers;
 using Microsoft.Shared.Diagnostics;
 
 namespace Microsoft.Extensions.DataIngestion.Chunkers;
-
-#pragma warning disable IDE0058 // Expression value is never used
 
 internal sealed class ElementsChunker
 {
@@ -21,27 +21,22 @@ internal sealed class ElementsChunker
     internal ElementsChunker(IngestionChunkerOptions options)
     {
         _ = Throw.IfNull(options);
-
         _tokenizer = options.Tokenizer;
         _maxTokensPerChunk = options.MaxTokensPerChunk;
-
-        // Token count != character count, but StringBuilder will grow as needed.
         _currentChunk = new(capacity: _maxTokensPerChunk);
     }
 
-    // Goals:
-    // 1. Create chunks that do not exceed _maxTokensPerChunk when tokenized.
-    // 2. Maintain context in each chunk.
-    // 3. If a single IngestionDocumentElement exceeds _maxTokensPerChunk, it should be split intelligently (e.g., paragraphs can be split into sentences, tables into rows).
-    internal IEnumerable<IngestionChunk> Process(IngestionDocument document, string context, List<IngestionDocumentElement> elements)
+    internal IEnumerable<IngestionChunk> Process(
+        IngestionDocument document,
+        string context,
+        IReadOnlyList<DocumentNode> elements,
+        IReadOnlyList<DocumentNode>? contextNodes = null)
     {
-        // Not using yield return here as we use ref structs.
         List<IngestionChunk> chunks = [];
-
+        List<DocumentNode> contributingNodes = contextNodes is null ? [] : [.. contextNodes];
         int contextTokenCount = CountTokens(context.AsSpan());
         int totalTokenCount = contextTokenCount;
 
-        // If the context itself exceeds the max tokens per chunk, we can't do anything.
         if (contextTokenCount >= _maxTokensPerChunk)
         {
             ThrowTokenCountExceeded();
@@ -49,134 +44,105 @@ internal sealed class ElementsChunker
 
         _currentChunk.Append(context);
 
-        for (int elementIndex = 0; elementIndex < elements.Count; elementIndex++)
+        foreach (DocumentNode element in elements)
         {
-            IngestionDocumentElement element = elements[elementIndex];
             string? semanticContent = element.GetSemanticContent();
-
             if (string.IsNullOrEmpty(semanticContent))
             {
                 continue;
             }
 
-            int elementTokenCount = CountTokens(semanticContent.AsSpan());
-            if (elementTokenCount + totalTokenCount <= _maxTokensPerChunk)
+            string candidate = _currentChunk.Length == 0
+                ? semanticContent
+                : _currentChunk.ToString() + "\n" + semanticContent;
+            int candidateTokenCount = CountTokens(candidate.AsSpan());
+            if (candidateTokenCount <= _maxTokensPerChunk)
             {
-                totalTokenCount += elementTokenCount;
+                totalTokenCount = candidateTokenCount;
                 AppendNewLineAndSpan(_currentChunk, semanticContent.AsSpan());
+                contributingNodes.AddRange(EnumerateNodeAndDescendants(element));
             }
-            else if (element is IngestionDocumentTable table)
+            else if (element is DocumentTable table)
             {
-                ValueStringBuilder tableBuilder = new(initialCapacity: 8000);
-
-                try
+                if (totalTokenCount > contextTokenCount)
                 {
-                    AddMarkdownTableRow(table, rowIndex: 0, ref tableBuilder);
-                    AddMarkdownTableSeparatorRow(columnCount: table.Cells.GetLength(1), ref tableBuilder);
+                    Commit();
+                }
 
-                    int headerLength = tableBuilder.Length;
-                    int headerTokenCount = CountTokens(tableBuilder.AsSpan());
-
-                    // We can't respect the limit if context and header themselves use more tokens.
-                    if (contextTokenCount + headerTokenCount >= _maxTokensPerChunk)
+                foreach ((string tableChunk, IReadOnlyList<DocumentNode> tableNodes) in GetTableChunks(table))
+                {
+                    string content = context.Length == 0 ? tableChunk : context + "\n" + tableChunk;
+                    int tokenCount = CountTokens(content.AsSpan());
+                    if (tokenCount > _maxTokensPerChunk)
                     {
                         ThrowTokenCountExceeded();
                     }
 
-                    if (headerTokenCount + totalTokenCount >= _maxTokensPerChunk)
-                    {
-                        // We can't add the header row, so commit what we have accumulated so far.
-                        Commit();
-                    }
-
-                    totalTokenCount += headerTokenCount;
-                    int tableLength = headerLength;
-
-                    int rowCount = table.Cells.GetLength(0);
-                    for (int rowIndex = 1; rowIndex < rowCount; rowIndex++)
-                    {
-                        AddMarkdownTableRow(table, rowIndex, ref tableBuilder);
-
-                        int lastRowTokens = CountTokens(tableBuilder.AsSpan(tableLength));
-
-                        // Appending this row would exceed the limit.
-                        if (totalTokenCount + lastRowTokens > _maxTokensPerChunk)
-                        {
-                            // We append the table as long as it's not just the header.
-                            if (rowIndex != 1)
-                            {
-                                AppendNewLineAndSpan(_currentChunk, tableBuilder.AsSpan(0, tableLength - Environment.NewLine.Length));
-                            }
-
-                            // And commit the table we built so far.
-                            Commit();
-
-                            // Erase previous rows and keep only the header.
-                            tableBuilder.Length = headerLength;
-                            tableLength = headerLength;
-                            totalTokenCount += headerTokenCount;
-
-                            if (totalTokenCount + lastRowTokens > _maxTokensPerChunk)
-                            {
-                                // This row is simply too big even for a fresh chunk:
-                                ThrowTokenCountExceeded();
-                            }
-
-                            AddMarkdownTableRow(table, rowIndex, ref tableBuilder);
-                        }
-
-                        tableLength = tableBuilder.Length;
-                        totalTokenCount += lastRowTokens;
-                    }
-
-                    AppendNewLineAndSpan(_currentChunk, tableBuilder.AsSpan(0, tableLength - Environment.NewLine.Length));
-                }
-                finally
-                {
-                    tableBuilder.Dispose();
+                    IEnumerable<DocumentNode> sources = contributingNodes.Concat(new DocumentNode[] { table }).Concat(tableNodes);
+                    chunks.Add(new(
+                        new TextContent(content),
+                        document,
+                        tokenCount,
+                        context,
+                        sources.GetSourceNodeIds(),
+                        sources.GetPageNumbers()));
                 }
             }
             else
             {
                 ReadOnlySpan<char> remainingContent = semanticContent.AsSpan();
-
                 while (!remainingContent.IsEmpty)
                 {
-                    int index = _tokenizer.GetIndexByTokenCount(
-                        text: remainingContent,
-                        maxTokenCount: _maxTokensPerChunk - totalTokenCount,
-                        out string? normalizedText,
-                        out int tokenCount,
-                        considerNormalization: false); // We don't normalize, just append as-is to keep original content.
-
-                    // some tokens fit
-                    if (index > 0)
+                    string prefix = _currentChunk.Length == 0 ? string.Empty : "\n";
+                    string combined = _currentChunk.ToString() + prefix + remainingContent.ToString();
+                    int combinedTokenCount = CountTokens(combined.AsSpan());
+                    if (combinedTokenCount <= _maxTokensPerChunk)
                     {
-                        // We could try to split by sentences or other delimiters, but it's complicated.
-                        // For simplicity, we will just split at the last new line that fits.
-                        // Our promise is not to go over the max token count, not to create perfect chunks.
-                        int newLineIndex = remainingContent.Slice(0, index).LastIndexOf('\n');
-                        if (newLineIndex > 0)
+                        _currentChunk.Append(prefix);
+#if NET
+                        _currentChunk.Append(remainingContent);
+#else
+                        _currentChunk.Append(remainingContent.ToString());
+#endif
+                        totalTokenCount = combinedTokenCount;
+                        if (!contributingNodes.Contains(element))
                         {
-                            index = newLineIndex + 1; // We want to include the new line character (works for "\r\n" as well).
-                            tokenCount = CountTokens(remainingContent.Slice(0, index));
+                            contributingNodes.Add(element);
                         }
 
-                        totalTokenCount += tokenCount;
-                        ReadOnlySpan<char> spanToAppend = remainingContent.Slice(0, index);
-                        AppendNewLineAndSpan(_currentChunk, spanToAppend);
-                        remainingContent = remainingContent.Slice(index);
+                        remainingContent = [];
+                        break;
+                    }
+
+                    int index = _tokenizer.GetIndexByTokenCount(
+                        combined,
+                        _maxTokensPerChunk,
+                        out string? _,
+                        out int _,
+                        considerNormalization: false);
+                    int charsToAppend = index - _currentChunk.Length - prefix.Length;
+                    if (charsToAppend > 0)
+                    {
+                        _currentChunk.Append(prefix);
+#if NET
+                        _currentChunk.Append(remainingContent.Slice(0, charsToAppend));
+#else
+                        _currentChunk.Append(remainingContent.Slice(0, charsToAppend).ToString());
+#endif
+                        totalTokenCount = CountTokens(_currentChunk.ToString().AsSpan());
+                        if (!contributingNodes.Contains(element))
+                        {
+                            contributingNodes.Add(element);
+                        }
+
+                        remainingContent = remainingContent.Slice(charsToAppend);
                     }
                     else if (totalTokenCount == contextTokenCount)
                     {
-                        // We are at the beginning of a chunk, and even a single token does not fit.
                         ThrowTokenCountExceeded();
                     }
 
-                    if (!remainingContent.IsEmpty)
-                    {
-                        Commit();
-                    }
+                    Commit();
                 }
             }
 
@@ -188,81 +154,119 @@ internal sealed class ElementsChunker
 
         if (totalTokenCount > contextTokenCount)
         {
-            string chunkContent = _currentChunk.ToString();
-            int chunkTokenCount = CountTokens(chunkContent.AsSpan());
-            chunks.Add(new(new TextContent(chunkContent), document, chunkTokenCount, context));
+            AddChunk();
         }
 
         _currentChunk.Clear();
-
         return chunks;
+
+        void AddChunk()
+        {
+            string content = _currentChunk.ToString();
+            chunks.Add(new(
+                new TextContent(content),
+                document,
+                CountTokens(content.AsSpan()),
+                context,
+                contributingNodes.GetSourceNodeIds(),
+                contributingNodes.GetPageNumbers()));
+        }
 
         void Commit()
         {
-            string chunkContent = _currentChunk.ToString();
-            int chunkTokenCount = CountTokens(chunkContent.AsSpan());
-            chunks.Add(new(new TextContent(chunkContent), document, chunkTokenCount, context));
-
-            // We keep the context in the current chunk as it's the same for all elements.
-            _currentChunk.Remove(
-                startIndex: context.Length,
-                length: _currentChunk.Length - context.Length);
+            AddChunk();
+            _currentChunk.Remove(context.Length, _currentChunk.Length - context.Length);
             totalTokenCount = contextTokenCount;
+            contributingNodes.Clear();
+            if (contextNodes is not null)
+            {
+                contributingNodes.AddRange(contextNodes);
+            }
         }
-
-        static void ThrowTokenCountExceeded()
-            => throw new InvalidOperationException("Can't fit in the current chunk. Consider increasing max tokens per chunk.");
     }
 
-    private static void AppendNewLineAndSpan(StringBuilder stringBuilder, ReadOnlySpan<char> chars)
+    private static void AppendNewLineAndSpan(StringBuilder builder, ReadOnlySpan<char> chars)
     {
-        // Don't start an empty chunk (no context provided) with a new line.
-        if (stringBuilder.Length > 0)
+        if (builder.Length > 0)
         {
-            stringBuilder.AppendLine();
+            _ = builder.Append('\n');
         }
 
 #if NET
-        stringBuilder.Append(chars);
+        _ = builder.Append(chars);
 #else
-        stringBuilder.Append(chars.ToString());
+        _ = builder.Append(chars.ToString());
 #endif
     }
 
-    private static void AddMarkdownTableRow(IngestionDocumentTable table, int rowIndex, ref ValueStringBuilder vsb)
+    private static IEnumerable<DocumentNode> EnumerateNodeAndDescendants(DocumentNode node)
     {
-        for (int columnIndex = 0; columnIndex < table.Cells.GetLength(1); columnIndex++)
+        yield return node;
+        IEnumerable<DocumentNode> children = node switch
         {
-            vsb.Append('|');
-            vsb.Append(' ');
-            string? cellContent = table.Cells[rowIndex, columnIndex] switch
+            DocumentContainer container => container.Children,
+            DocumentTable table => table.Cells,
+            DocumentTableCell cell => cell.Content,
+            _ => [],
+        };
+
+        foreach (DocumentNode child in children)
+        {
+            foreach (DocumentNode descendant in EnumerateNodeAndDescendants(child))
             {
-                null => null,
-                IngestionDocumentElement element => element.GetSemanticContent()
-            };
-            vsb.Append(cellContent);
-            vsb.Append(' ');
+                yield return descendant;
+            }
         }
-
-        vsb.Append('|');
-        vsb.Append(Environment.NewLine);
     }
 
-    private static void AddMarkdownTableSeparatorRow(int columnCount, ref ValueStringBuilder vsb)
+    private static IEnumerable<(string Text, IReadOnlyList<DocumentNode> Nodes)> GetTableChunks(DocumentTable table)
     {
-        const int DashCount = 3; // The dash count does not need to match the header length.
-        for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
+        IGrouping<int, DocumentTableCell>[] rows = table.Cells.GroupBy(static cell => cell.RowIndex).ToArray();
+        if (rows.Length == 0)
         {
-            vsb.Append('|');
-            vsb.Append(' ');
-            vsb.Append('-', DashCount);
-            vsb.Append(' ');
+            yield break;
         }
 
-        vsb.Append('|');
-        vsb.Append(Environment.NewLine);
+        bool hasHeader = rows[0].Any(static cell => cell.Role == DocumentTableCellRole.ColumnHeader);
+        string? header = hasHeader ? GetTableRow(rows[0]) : null;
+        DocumentNode[] headerNodes = hasHeader ? rows[0].SelectMany(EnumerateNodeAndDescendants).ToArray() : [];
+        int firstDataRow = hasHeader ? 1 : 0;
+        if (firstDataRow == rows.Length)
+        {
+            yield return (header!, headerNodes);
+            yield break;
+        }
+
+        for (int rowIndex = firstDataRow; rowIndex < rows.Length; rowIndex++)
+        {
+            string rowText = GetTableRow(rows[rowIndex]);
+            DocumentNode[] rowNodes = rows[rowIndex].SelectMany(EnumerateNodeAndDescendants).ToArray();
+            yield return (header is null ? rowText : header + "\n" + rowText, [.. headerNodes, .. rowNodes]);
+        }
     }
 
-    private int CountTokens(ReadOnlySpan<char> input)
-        => _tokenizer.CountTokens(input, considerNormalization: false);
+    private static string GetTableRow(IEnumerable<DocumentTableCell> cells)
+    {
+        List<string> columns = [];
+        foreach (DocumentTableCell cell in cells.OrderBy(static cell => cell.ColumnIndex))
+        {
+            while (columns.Count < cell.ColumnIndex)
+            {
+                columns.Add(string.Empty);
+            }
+
+            columns.Add(DocumentTextProjection.GetText(cell.Content));
+            for (int span = 1; span < cell.ColumnSpan; span++)
+            {
+                columns.Add(string.Empty);
+            }
+        }
+
+        return string.Join("\t", columns);
+    }
+
+    private static void ThrowTokenCountExceeded() =>
+        throw new InvalidOperationException("Can't fit in the current chunk. Consider increasing max tokens per chunk.");
+
+    private int CountTokens(ReadOnlySpan<char> input) => _tokenizer.CountTokens(input, considerNormalization: false);
 }

@@ -38,7 +38,7 @@ public class DocumentExtractionClientExtensionsTests
     public async Task ExtractAsync_DataContent_PassesStreamAndMediaTypeAsync()
     {
         // Arrange
-        var expectedResponse = new DocumentExtractionResult([new DocumentPage(1, [new DocumentBlock("hello")])]);
+        var expectedResponse = new DocumentExtractionResult([TestDocument.Page(1, "hello")]);
         string? observedMediaType = null;
         byte[]? observedBytes = null;
 

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DataIngestion.Tests;
@@ -16,7 +17,7 @@ namespace Microsoft.Extensions.DataIngestion.Processors.Tests;
 
 public class ClassificationEnricherTests
 {
-    private static readonly IngestionDocument _document = new("test");
+    private static readonly IngestionDocument _document = TestDocuments.Create("test");
 
     [Fact]
     public void ThrowsOnNullOptions()
@@ -127,4 +128,115 @@ public class ClassificationEnricherTests
             "They are herbivorous animals and are known for their long ears, large hind legs, and short fluffy tails.", _document),
         TestChunkFactory.CreateChunk("This text does not belong to any category.", _document),
     ];
+
+    [Fact]
+    public async Task ProcessAsync_BatchesRequestsAtConfiguredSize()
+    {
+        List<string[]> requestBatches = [];
+        string[][] responseBatches =
+        [
+            ["AI", "Animals"],
+            ["Unknown"],
+        ];
+        using TestChatClient chatClient = new()
+        {
+            GetResponseAsyncCallback = (messages, options, cancellationToken) =>
+            {
+                ChatMessage[] request = messages.ToArray();
+                Assert.Equal(ChatRole.System, request[0].Role);
+                Assert.Equal(ChatRole.User, request[1].Role);
+                requestBatches.Add(request[1].Contents.Cast<TextContent>().Select(content => content.Text).ToArray());
+                return Task.FromResult(CreateResponse(responseBatches[requestBatches.Count - 1]));
+            }
+        };
+        ClassificationEnricher sut = new(
+            new EnricherOptions(chatClient) { BatchSize = 2 },
+            ["AI", "Animals"]);
+        List<IngestionChunk> chunks = CreateChunks();
+
+        IReadOnlyList<IngestionChunk> result = await sut.ProcessAsync(chunks.ToAsyncEnumerable()).ToListAsync();
+
+        Assert.Equal([2, 1], requestBatches.Select(batch => batch.Length));
+        Assert.Equal(
+            chunks.Select(chunk => Assert.IsType<TextContent>(chunk.Content).Text),
+            requestBatches.SelectMany(batch => batch));
+        Assert.Equal(["AI", "Animals", "Unknown"], result.Select(chunk => chunk.Metadata[ClassificationEnricher.MetadataKey]));
+        Assert.Equal(chunks, result);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ResultCountMismatch_UsesDocumentedBestEffortBehavior()
+    {
+        FakeLogCollector collector = new();
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(b => b.AddProvider(new FakeLoggerProvider(collector)));
+        int callCount = 0;
+        using TestChatClient chatClient = new()
+        {
+            GetResponseAsyncCallback = (messages, options, cancellationToken) =>
+            {
+                callCount++;
+                return Task.FromResult(CreateResponse("AI", "Animals"));
+            }
+        };
+        ClassificationEnricher sut = new(
+            new EnricherOptions(chatClient) { BatchSize = 3, LoggerFactory = loggerFactory },
+            ["AI", "Animals"]);
+        List<IngestionChunk> chunks = CreateChunks();
+
+        IReadOnlyList<IngestionChunk> result = await sut.ProcessAsync(chunks.ToAsyncEnumerable()).ToListAsync();
+
+        Assert.Equal(1, callCount);
+        Assert.Equal(chunks, result);
+        Assert.All(result, chunk => Assert.False(chunk.HasMetadata));
+        Assert.Equal(1, collector.Count);
+        Assert.Equal(7, collector.LatestRecord.Id.Id);
+        Assert.Equal(LogLevel.Error, collector.LatestRecord.Level);
+        Assert.Equal("The AI chat service returned 2 instead of 3 results.", collector.LatestRecord.Message);
+        Assert.Null(collector.LatestRecord.Exception);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_CancellationAtChatBoundary_CharacterizesBestEffortBehavior()
+    {
+        FakeLogCollector collector = new();
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(b => b.AddProvider(new FakeLoggerProvider(collector)));
+        using CancellationTokenSource cancellationSource = new();
+        CancellationToken observedToken = default;
+        int callCount = 0;
+        using TestChatClient chatClient = new()
+        {
+            GetResponseAsyncCallback = (messages, options, cancellationToken) =>
+            {
+                callCount++;
+                observedToken = cancellationToken;
+                cancellationSource.Cancel();
+                return Task.FromCanceled<ChatResponse>(cancellationToken);
+            }
+        };
+        ClassificationEnricher sut = new(
+            new EnricherOptions(chatClient) { BatchSize = 3, LoggerFactory = loggerFactory },
+            ["AI", "Animals"]);
+        List<IngestionChunk> chunks = CreateChunks();
+
+        IReadOnlyList<IngestionChunk> result =
+            await sut.ProcessAsync(chunks.ToAsyncEnumerable(), cancellationSource.Token).ToListAsync();
+
+        Assert.Equal(1, callCount);
+        Assert.Equal(cancellationSource.Token, observedToken);
+        Assert.True(observedToken.IsCancellationRequested);
+        Assert.Equal(chunks, result);
+        Assert.All(result, chunk => Assert.False(chunk.HasMetadata));
+        Assert.Equal(1, collector.Count);
+        Assert.Equal(8, collector.LatestRecord.Id.Id);
+        Assert.Equal(LogLevel.Error, collector.LatestRecord.Level);
+        Assert.IsAssignableFrom<OperationCanceledException>(collector.LatestRecord.Exception);
+    }
+
+    private static ChatResponse CreateResponse(params string[] results) =>
+        new(
+        [
+            new ChatMessage(
+                ChatRole.Assistant,
+                JsonSerializer.Serialize(new Envelope<string[]> { data = results })),
+        ]);
 }

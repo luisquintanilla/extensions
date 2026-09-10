@@ -3,9 +3,9 @@
 
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.AI;
 using Microsoft.Shared.DiagnosticIds;
 using Microsoft.Shared.Diagnostics;
 
@@ -24,15 +24,15 @@ public static class DocumentExtractionPageResultExtensions
         _ = Throw.IfNull(updates);
 
         List<DocumentPage> pages = [];
-        DocumentExtractionResult result = new(pages);
+        DocumentExtractionUsage? usage = null;
+        AdditionalPropertiesDictionary? additionalProperties = null;
 
         foreach (var update in updates)
         {
-            ProcessUpdate(update, pages, result);
+            ProcessUpdate(update, pages, ref usage, ref additionalProperties);
         }
 
-        OrderPages(pages);
-        return result;
+        return new DocumentExtractionResult(pages) { Usage = usage, AdditionalProperties = additionalProperties };
     }
 
     /// <summary>Combines <see cref="DocumentExtractionPageResult"/> instances into a single <see cref="DocumentExtractionResult"/>.</summary>
@@ -51,51 +51,50 @@ public static class DocumentExtractionPageResultExtensions
             IAsyncEnumerable<DocumentExtractionPageResult> updates, CancellationToken cancellationToken)
         {
             List<DocumentPage> pages = [];
-            DocumentExtractionResult result = new(pages);
+            DocumentExtractionUsage? usage = null;
+            AdditionalPropertiesDictionary? additionalProperties = null;
 
             await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                ProcessUpdate(update, pages, result);
+                ProcessUpdate(update, pages, ref usage, ref additionalProperties);
             }
 
-            OrderPages(pages);
-            return result;
+            return new DocumentExtractionResult(pages) { Usage = usage, AdditionalProperties = additionalProperties };
         }
     }
 
     /// <summary>Incorporates one <see cref="DocumentExtractionPageResult"/> into the assembled <see cref="DocumentExtractionResult"/>.</summary>
     /// <param name="update">The update to process.</param>
     /// <param name="pages">The accumulating list of pages backing <see cref="DocumentExtractionResult.Pages"/>.</param>
-    /// <param name="result">The <see cref="DocumentExtractionResult"/> being assembled.</param>
-    private static void ProcessUpdate(DocumentExtractionPageResult update, List<DocumentPage> pages, DocumentExtractionResult result)
+    /// <param name="usage">The latest usage details.</param>
+    /// <param name="additionalProperties">The accumulated provider properties.</param>
+    private static void ProcessUpdate(
+        DocumentExtractionPageResult update,
+        List<DocumentPage> pages,
+        ref DocumentExtractionUsage? usage,
+        ref AdditionalPropertiesDictionary? additionalProperties)
     {
         pages.Add(update.Page);
 
         if (update.Usage is not null)
         {
-            result.Usage = update.Usage;
+            usage = update.Usage;
         }
 
         if (update.AdditionalProperties is not null)
         {
-            if (result.AdditionalProperties is null)
+            if (additionalProperties is null)
             {
-                result.AdditionalProperties = new(update.AdditionalProperties);
+                additionalProperties = new(update.AdditionalProperties);
             }
             else
             {
                 foreach (var entry in update.AdditionalProperties)
                 {
-                    result.AdditionalProperties[entry.Key] = entry.Value;
+                    additionalProperties[entry.Key] = entry.Value;
                 }
             }
         }
     }
 
-    private static void OrderPages(List<DocumentPage> pages)
-    {
-        DocumentPage[] orderedPages = pages.OrderBy(static page => page.PageNumber).ToArray();
-        pages.Clear();
-        pages.AddRange(orderedPages);
-    }
 }

@@ -55,7 +55,7 @@ public class LoggingDocumentExtractionClientTests
         using IDocumentExtractionClient innerClient = new TestDocumentExtractionClient
         {
             ExtractAsyncCallback = (document, mediaType, options, cancellationToken) =>
-                Task.FromResult(new DocumentExtractionResult([new DocumentPage(1, [new DocumentBlock("blue whale")])])),
+                Task.FromResult(new DocumentExtractionResult([TestDocument.Page(1, "blue whale")])),
         };
 
         using IDocumentExtractionClient client = innerClient

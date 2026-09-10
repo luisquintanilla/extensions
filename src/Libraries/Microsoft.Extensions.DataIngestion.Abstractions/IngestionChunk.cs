@@ -4,7 +4,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Documents;
 using Microsoft.Shared.Diagnostics;
 
 namespace Microsoft.Extensions.DataIngestion;
@@ -30,12 +32,32 @@ public class IngestionChunk
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="tokenCount"/> is negative.
     /// </exception>
-    public IngestionChunk(AIContent content, IngestionDocument document, int tokenCount, string? context = null)
+    public IngestionChunk(
+        AIContent content,
+        IngestionDocument document,
+        int tokenCount,
+        string? context = null,
+        IEnumerable<DocumentNodeId>? sourceNodeIds = null,
+        IEnumerable<int>? pageNumbers = null)
     {
         Content = Throw.IfNull(content);
         Document = Throw.IfNull(document);
         Context = context;
         TokenCount = Throw.IfLessThanOrEqual(tokenCount, 0);
+        DocumentNodeId[] normalizedSourceNodeIds = sourceNodeIds?.Distinct().ToArray() ?? [];
+        if (normalizedSourceNodeIds.Any(static sourceNodeId => sourceNodeId == default))
+        {
+            Throw.ArgumentException(nameof(sourceNodeIds), "Source node identifiers cannot be empty.");
+        }
+
+        int[] normalizedPageNumbers = pageNumbers?.Distinct().OrderBy(static pageNumber => pageNumber).ToArray() ?? [];
+        if (normalizedPageNumbers.Any(static pageNumber => pageNumber <= 0))
+        {
+            Throw.ArgumentOutOfRangeException(nameof(pageNumbers), "Page numbers must be positive and one-based.");
+        }
+
+        SourceNodeIds = normalizedSourceNodeIds;
+        PageNumbers = normalizedPageNumbers;
     }
 
     /// <summary>
@@ -57,6 +79,12 @@ public class IngestionChunk
     /// Gets the number of tokens used to represent the chunk.
     /// </summary>
     public int TokenCount { get; }
+
+    /// <summary>Gets semantic source node identifiers contributing to this chunk.</summary>
+    public IReadOnlyList<DocumentNodeId> SourceNodeIds { get; }
+
+    /// <summary>Gets physical source page numbers contributing to this chunk.</summary>
+    public IReadOnlyList<int> PageNumbers { get; }
 
     /// <summary>
     /// Gets a value indicating whether this chunk has metadata.

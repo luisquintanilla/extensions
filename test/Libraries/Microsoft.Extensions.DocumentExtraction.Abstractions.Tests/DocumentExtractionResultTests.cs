@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Linq;
+using Microsoft.Extensions.Documents;
 using Xunit;
 
 namespace Microsoft.Extensions.DocumentExtraction;
@@ -9,140 +11,90 @@ namespace Microsoft.Extensions.DocumentExtraction;
 public class DocumentExtractionResultTests
 {
     [Fact]
-    public void Constructor_NullPages_Throws()
+    public void ConstructorSortsPagesAndPreservesUsage()
     {
-        Assert.Throws<ArgumentNullException>("pages", () => new DocumentExtractionResult(null!));
+        DocumentExtractionResult result = new([TestDocument.Page(2, "two"), TestDocument.Page(1, "one")])
+        {
+            Usage = new() { PagesProcessed = 2 },
+        };
+
+        Assert.Equal([1, 2], result.Pages.Select(page => page.PageNumber));
+        Assert.Equal("one\n\ntwo", result.Text);
+        Assert.Equal(result.Text, result.Document.Text);
+        Assert.Equal(2, result.Usage.PagesProcessed);
     }
 
     [Fact]
-    public void Text_JoinsPerPageText()
-    {
-        var result = new DocumentExtractionResult(
-        [
-            new DocumentPage(1, [new DocumentBlock("page one")]),
-            new DocumentPage(2, [new DocumentBlock("page two")]),
-        ]);
-
-        Assert.Equal("page one\n\npage two", result.Text);
-        Assert.Equal(2, result.Pages.Count);
-    }
-
-    [Fact]
-    public void PageMarkdown_IsNullableAndPreservedExactlyWithoutBecomingText()
+    public void MarkdownRemainsExactExtractionState()
     {
         const string Markdown = " \n# Provider heading\r\n\r\n*exact*  \n";
-        DocumentPage pageWithoutMarkdown = new(1, []);
-        DocumentPage markdownOnlyPage = new(2, [], Markdown);
+        DocumentPage page = new(1, new Document([]), Markdown);
 
-        Assert.Null(pageWithoutMarkdown.Markdown);
-        Assert.Equal(Markdown, markdownOnlyPage.Markdown);
-        Assert.Equal(string.Empty, markdownOnlyPage.Text);
-    }
-
-    [Fact]
-    public void PageText_RecursesInReadingOrderWithDeterministicTableSeparators()
-    {
-        DocumentTableCell spanningCell = new(
-            0,
-            0,
-            [new DocumentBlock("A"), new DocumentImage { Caption = "caption" }])
-        {
-            RowSpan = 2,
-            ColumnSpan = 2,
-        };
-        DocumentTableCell nestedCell = new(
-            0,
-            2,
-            [
-                new DocumentTable(
-                    1,
-                    1,
-                    [new DocumentTableCell(0, 0, [new DocumentBlock("B")])]),
-            ]);
-        DocumentTableCell finalCell = new(1, 2, [new DocumentBlock("C")]);
-        DocumentTable table = new(
-            2,
-            3,
-            [finalCell, nestedCell, spanningCell],
-            markdownRepresentation: "| ignored provider rendering |");
-        DocumentPage page = new(
-            1,
-            [
-                new DocumentBlock("Intro"),
-                table,
-                new DocumentImage { Content = new byte[] { 1, 2, 3 }, MediaType = "image/png" },
-                new DocumentBlock("Outro"),
-            ]);
-
-        Assert.Equal("Intro\n\nA\n\ncaption\t\tB\n\t\tC\n\nOutro", page.Text);
-    }
-
-    [Fact]
-    public void PageText_UsesOnlyTextBearingStructuredContent()
-    {
-        DocumentPage page = new(
-            1,
-            [
-                new DocumentImage { Content = new byte[] { 1 }, MediaType = "image/png" },
-                new DocumentTable(0, 0, cells: null, markdownRepresentation: "| markdown only |"),
-                new DocumentTable(1, 1, [new DocumentTableCell(0, 0, [])]),
-            ],
-            markdown: "provider page markdown");
-
+        Assert.Equal(Markdown, page.Markdown);
         Assert.Equal(string.Empty, page.Text);
-    }
-
-    [Fact]
-    public void TableText_PreservesEmptyCellColumnPosition()
-    {
-        DocumentPage page = new(
-            1,
-            [
-                new DocumentTable(
-                    1,
-                    3,
-                    [
-                        new DocumentTableCell(0, 0, [new DocumentBlock("A")]),
-                        new DocumentTableCell(0, 1, []),
-                        new DocumentTableCell(0, 2, [new DocumentBlock("C")]),
-                    ]),
-            ]);
-
-        Assert.Equal("A\t\tC", page.Text);
-    }
-
-    [Fact]
-    public void ResultText_PreservesPageBoundariesWithoutAggregatingMarkdown()
-    {
-        DocumentExtractionResult result = new(
-        [
-            new DocumentPage(1, [new DocumentBlock("one")], "# one"),
-            new DocumentPage(2, [], "# two"),
-            new DocumentPage(3, [new DocumentBlock("three")], "# three"),
-        ]);
-
-        Assert.Equal("one\n\n\n\nthree", result.Text);
         Assert.Null(typeof(DocumentExtractionResult).GetProperty("Markdown"));
     }
 
     [Fact]
-    public void ApiShape_HasSingleStructuredTextAuthorityAndBclImageContent()
+    public void InvalidAndDuplicatePagesAreRejected()
     {
-        Assert.False(typeof(DocumentPage).GetProperty(nameof(DocumentPage.Elements))!.CanWrite);
-        Assert.False(typeof(DocumentPage).GetProperty(nameof(DocumentPage.Text))!.CanWrite);
-        Assert.False(typeof(DocumentPage).GetProperty(nameof(DocumentPage.Markdown))!.CanWrite);
-        Assert.Null(typeof(DocumentTableCell).GetProperty("Content"));
-        Assert.NotNull(typeof(DocumentExtractionResult).GetProperty(nameof(DocumentExtractionResult.Usage)));
-        Assert.NotNull(typeof(DocumentExtractionPageResult).GetProperty(nameof(DocumentExtractionPageResult.Usage)));
-        Assert.NotNull(typeof(DocumentExtractionPageResult).GetProperty(nameof(DocumentExtractionPageResult.PagesProcessed)));
-        Assert.Equal(typeof(ReadOnlyMemory<byte>?), typeof(DocumentImage).GetProperty(nameof(DocumentImage.Content))!.PropertyType);
-        Assert.Equal(typeof(string), typeof(DocumentImage).GetProperty(nameof(DocumentImage.MediaType))!.PropertyType);
+        Assert.Throws<ArgumentNullException>("pages", () => new DocumentExtractionResult(null!));
+        Assert.Throws<ArgumentOutOfRangeException>("pageNumber", () => new DocumentPage(0, new Document([])));
+        Assert.Throws<ArgumentException>("pages", () => new DocumentExtractionResult([TestDocument.Page(1, "one"), TestDocument.Page(1, "duplicate")]));
     }
 
     [Fact]
-    public void StructuredConstructors_RejectNullElements()
+    public void EvidenceIsIndexedByMergedDocumentNodeIdentity()
     {
-        Assert.Throws<ArgumentNullException>("elements", () => new DocumentPage(1, null!));
-        Assert.Throws<ArgumentNullException>("elements", () => new DocumentTableCell(0, 0, null!));
+        DocumentText first = new(new("first"), "one");
+        DocumentText second = new(new("second"), "two");
+        object raw = new();
+        DocumentExtractionResult result = new(
+        [
+            new DocumentPage(2, new Document([second]), evidence: [new(second.Id) { RawRepresentation = raw }]),
+            new DocumentPage(1, new Document([first]), evidence: [new(first.Id) { Confidence = 0.8 }]),
+        ]);
+
+        Assert.True(result.TryGetEvidence(second.Id, out DocumentExtractionEvidence? evidence));
+        Assert.Same(raw, evidence!.RawRepresentation);
+        Assert.Equal([first.Id, second.Id], result.Evidence.Keys.OrderBy(static id => id.Value));
+        Assert.False(result.TryGetEvidence(new("missing"), out _));
+        Assert.Null(typeof(DocumentNode).GetProperty("BoundingRegion"));
+    }
+
+    [Fact]
+    public void PageAndNodeEvidencePreserveProviderGeometryAndProperties()
+    {
+        DocumentText node = new(new("geometry"), "located");
+        object pageRaw = new();
+        object nodeRaw = new();
+        DocumentExtractionEvidence evidence = new(node.Id)
+        {
+            BoundingRegion = DocumentBoundingRegion.FromRectangle(3, 10, 20, 110, 220),
+            Confidence = 0.75,
+            RawRepresentation = nodeRaw,
+            AdditionalProperties = new() { ["providerNode"] = "value" },
+        };
+        DocumentPage page = new(3, new Document([node]), evidence: [evidence])
+        {
+            Dimensions = new(612, 792),
+            CoordinateUnit = DocumentCoordinateUnit.Point,
+            CoordinateOrigin = DocumentCoordinateOrigin.BottomLeft,
+            RawRepresentation = pageRaw,
+            AdditionalProperties = new() { ["providerPage"] = "value" },
+        };
+
+        DocumentExtractionResult result = new([page]);
+
+        Assert.Equal(new DocumentPageDimensions(612, 792), result.Pages[0].Dimensions);
+        Assert.Equal(DocumentCoordinateUnit.Point, result.Pages[0].CoordinateUnit);
+        Assert.Equal(DocumentCoordinateOrigin.BottomLeft, result.Pages[0].CoordinateOrigin);
+        Assert.Same(pageRaw, result.Pages[0].RawRepresentation);
+        Assert.Equal("value", result.Pages[0].AdditionalProperties!["providerPage"]);
+        Assert.True(result.TryGetEvidence(node.Id, out DocumentExtractionEvidence? indexed));
+        Assert.Equal(0.75, indexed!.Confidence);
+        Assert.Equal(3, indexed.BoundingRegion!.PageNumber);
+        Assert.Same(nodeRaw, indexed.RawRepresentation);
+        Assert.Equal("value", indexed.AdditionalProperties!["providerNode"]);
     }
 }

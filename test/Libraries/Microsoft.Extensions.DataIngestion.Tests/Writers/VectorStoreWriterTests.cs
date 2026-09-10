@@ -47,7 +47,7 @@ public abstract class VectorStoreWriterTests
 
         using VectorStoreWriter<IngestionChunkVectorRecord> writer = new(collection);
 
-        IngestionDocument document = new(documentId);
+        IngestionDocument document = TestDocuments.Create(documentId);
         IngestionChunk chunk = TestChunkFactory.CreateChunk("custom schema content", document);
 
         List<IngestionChunk> chunks = [chunk];
@@ -78,7 +78,7 @@ public abstract class VectorStoreWriterTests
 
         using VectorStoreWriter<IngestionChunkVectorRecord> writer = new(collection);
 
-        IngestionDocument document = new(documentId);
+        IngestionDocument document = TestDocuments.Create(documentId);
         IngestionChunk chunk = TestChunkFactory.CreateChunk("some content", document);
 
         List<IngestionChunk> chunks = [chunk];
@@ -99,6 +99,59 @@ public abstract class VectorStoreWriterTests
     }
 
     [Fact]
+    public async Task PersistsPageProvenanceAndPolymorphicNonTextContent()
+    {
+        string documentId = Guid.NewGuid().ToString();
+        using TestEmbeddingGenerator<AIContent> embeddingGenerator = new();
+        using VectorStore vectorStore = CreateVectorStore(embeddingGenerator);
+        VectorStoreCollection<Guid, IngestionChunkVectorRecord> collection =
+            vectorStore.GetIngestionRecordCollection<IngestionChunkVectorRecord>(
+                "chunks-data", TestEmbeddingGenerator<AIContent>.DimensionCount);
+        using VectorStoreWriter<IngestionChunkVectorRecord> writer = new(collection);
+        IngestionDocument document = TestDocuments.Create(documentId);
+        IngestionChunk chunk = new(
+            new DataContent(new byte[] { 1, 2, 3 }, "image/png"),
+            document,
+            1,
+            sourceNodeIds: [new("image")],
+            pageNumbers: [2, 1, 2]);
+
+        await writer.WriteAsync(new[] { chunk }.ToAsyncEnumerable());
+
+        IngestionChunkVectorRecord record = await collection
+            .GetAsync(filter: record => record.DocumentId == documentId, top: 1)
+            .SingleAsync();
+
+        DataContent content = Assert.IsType<DataContent>(record.Content);
+        Assert.Equal(new byte[] { 1, 2, 3 }, content.Data.ToArray());
+        Assert.Equal("image/png", content.MediaType);
+        Assert.Equal("1,2", record.SerializedPageNumbers);
+        Assert.Equal([1, 2], record.PageNumbers);
+        Assert.True(embeddingGenerator.WasCalled);
+    }
+
+    [Fact]
+    public async Task NoPageProvenancePersistsNull()
+    {
+        string documentId = Guid.NewGuid().ToString();
+        using TestEmbeddingGenerator<AIContent> embeddingGenerator = new();
+        using VectorStore vectorStore = CreateVectorStore(embeddingGenerator);
+        VectorStoreCollection<Guid, IngestionChunkVectorRecord> collection =
+            vectorStore.GetIngestionRecordCollection<IngestionChunkVectorRecord>(
+                "chunks-no-pages", TestEmbeddingGenerator<AIContent>.DimensionCount);
+        using VectorStoreWriter<IngestionChunkVectorRecord> writer = new(collection);
+        IngestionDocument document = TestDocuments.Create(documentId);
+
+        await writer.WriteAsync(new[] { TestChunkFactory.CreateChunk("content", document) }.ToAsyncEnumerable());
+
+        IngestionChunkVectorRecord record = await collection
+            .GetAsync(filter: record => record.DocumentId == documentId, top: 1)
+            .SingleAsync();
+        Assert.Null(record.SerializedPageNumbers);
+        Assert.Empty(record.PageNumbers);
+    }
+
+    [Fact]
     public async Task CanWriteChunksWithMetadata()
     {
         string documentId = Guid.NewGuid().ToString();
@@ -110,7 +163,7 @@ public abstract class VectorStoreWriterTests
             "chunks-meta", TestEmbeddingGenerator<AIContent>.DimensionCount);
         using TestVectorStoreWriterWithMetadata writer = new(collection);
 
-        IngestionDocument document = new(documentId);
+        IngestionDocument document = TestDocuments.Create(documentId);
         IngestionChunk chunk = TestChunkFactory.CreateChunk("some content", document);
         chunk.Metadata["Classification"] = "important";
 
@@ -147,7 +200,7 @@ public abstract class VectorStoreWriterTests
                 IncrementalIngestion = true,
             });
 
-        IngestionDocument document = new(documentId);
+        IngestionDocument document = TestDocuments.Create(documentId);
         IngestionChunk chunk1 = TestChunkFactory.CreateChunk("first chunk", document);
         IngestionChunk chunk2 = TestChunkFactory.CreateChunk("second chunk", document);
 
@@ -215,7 +268,7 @@ public abstract class VectorStoreWriterTests
             collection,
             options: options);
 
-        IngestionDocument document = new(documentId);
+        IngestionDocument document = TestDocuments.Create(documentId);
         List<IngestionChunk> chunks = [];
         for (int i = 0; i < chunkTokenCounts.Length; i++)
         {
@@ -249,7 +302,7 @@ public abstract class VectorStoreWriterTests
                 IncrementalIngestion = true,
             });
 
-        IngestionDocument document = new(documentId);
+        IngestionDocument document = TestDocuments.Create(documentId);
 
         // Create enough chunks to exercise the incremental ingestion delete-all behavior in DEBUG builds
         List<IngestionChunk> chunks = [];
@@ -295,8 +348,8 @@ public abstract class VectorStoreWriterTests
 
         using VectorStoreWriter<IngestionChunkVectorRecord> writer = new(collection);
 
-        IngestionDocument document1 = new("doc1");
-        IngestionDocument document2 = new("doc2");
+        IngestionDocument document1 = TestDocuments.Create("doc1");
+        IngestionDocument document2 = TestDocuments.Create("doc2");
 
         IngestionChunk chunk1 = TestChunkFactory.CreateChunk("chunk from doc1", document1);
         IngestionChunk chunk2 = TestChunkFactory.CreateChunk("chunk from doc2", document2);

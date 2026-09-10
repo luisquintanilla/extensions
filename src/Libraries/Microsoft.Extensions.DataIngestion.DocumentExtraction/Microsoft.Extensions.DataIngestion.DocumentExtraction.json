@@ -1,0 +1,36 @@
+{
+  "Name": "Microsoft.Extensions.DataIngestion.DocumentExtraction, Version=10.8.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35",
+  "Types": [
+    {
+      "Type": "sealed class Microsoft.Extensions.DataIngestion.DocumentExtractionReader : Microsoft.Extensions.DataIngestion.IngestionDocumentReader",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "Microsoft.Extensions.DataIngestion.DocumentExtractionReader.DocumentExtractionReader(Microsoft.Extensions.DocumentExtraction.IDocumentExtractionClient client, Microsoft.Extensions.DocumentExtraction.DocumentExtractionOptions? options = null);",
+          "Stage": "Stable"
+        },
+        {
+          "Member": "override System.Threading.Tasks.Task<Microsoft.Extensions.DataIngestion.IngestionDocument> Microsoft.Extensions.DataIngestion.DocumentExtractionReader.ReadAsync(System.IO.Stream source, string identifier, string mediaType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));",
+          "Stage": "Stable"
+        }
+      ],
+      "Fields": [
+        {
+          "Member": "const string Microsoft.Extensions.DataIngestion.DocumentExtractionReader.ExtractionResultMetadataKey",
+          "Stage": "Stable",
+          "Value": "Microsoft.Extensions.DataIngestion.DocumentExtraction.Result"
+        }
+      ]
+    },
+    {
+      "Type": "static class Microsoft.Extensions.DataIngestion.DocumentExtractionReaderExtensions",
+      "Stage": "Stable",
+      "Methods": [
+        {
+          "Member": "static bool Microsoft.Extensions.DataIngestion.DocumentExtractionReaderExtensions.TryGetExtractionResult(this Microsoft.Extensions.DataIngestion.IngestionDocument document, out Microsoft.Extensions.DocumentExtraction.DocumentExtractionResult? result);",
+          "Stage": "Stable"
+        }
+      ]
+    }
+  ]
+}

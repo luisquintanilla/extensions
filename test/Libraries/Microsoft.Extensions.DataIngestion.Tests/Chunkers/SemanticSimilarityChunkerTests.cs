@@ -1,255 +1,275 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Documents;
 using Microsoft.ML.Tokenizers;
 using Xunit;
 
-namespace Microsoft.Extensions.DataIngestion.Chunkers.Tests
+namespace Microsoft.Extensions.DataIngestion.Chunkers.Tests;
+
+public class SemanticSimilarityChunkerTests : DocumentChunkerTests
 {
-    public class SemanticSimilarityChunkerTests : DocumentChunkerTests
+    private static readonly Tokenizer _tokenizer = TiktokenTokenizer.CreateForModel("gpt-4");
+
+#pragma warning disable CA2000 // The base-class factory does not expose a disposal path for its fake dependency.
+    protected override IngestionChunker CreateDocumentChunker(int maxTokensPerChunk = 2_000, int overlapTokens = 500) =>
+        new SemanticSimilarityChunker(
+            new RecordingEmbeddingGenerator([[1f, 0f]]),
+            new(_tokenizer) { MaxTokensPerChunk = maxTokensPerChunk },
+            thresholdPercentile: 50);
+#pragma warning restore CA2000
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(100f)]
+    public async Task Constructor_AcceptsInclusiveThresholdPercentileBounds(float thresholdPercentile)
     {
-        protected override IngestionChunker CreateDocumentChunker(int maxTokensPerChunk = 2_000, int overlapTokens = 500)
+        using RecordingEmbeddingGenerator generator = new([[1f, 0f]]);
+        IngestionDocument document = TestDocuments.Create(
+            "threshold-boundary",
+            TestDocuments.Text("paragraph", "Boundary percentile content.", pageNumber: 1));
+        SemanticSimilarityChunker chunker = new(
+            generator,
+            new(_tokenizer) { MaxTokensPerChunk = 100 },
+            thresholdPercentile);
+
+        IngestionChunk chunk = Assert.Single(await chunker.ProcessAsync(document).ToListAsync());
+
+        ChunkerTestAssertions.Equal(
+            chunk,
+            document,
+            "Boundary percentile content.",
+            string.Empty,
+            ["paragraph"],
+            [1],
+            _tokenizer);
+        Assert.Equal(["Boundary percentile content."], generator.Inputs);
+        Assert.Equal(1, generator.CallCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_SingleParagraphProducesSingleChunk()
+    {
+        using RecordingEmbeddingGenerator generator = new([[1f, 0f]]);
+        IngestionDocument document = TestDocuments.Create(
+            "single",
+            TestDocuments.Text("paragraph", "A single semantic paragraph.", pageNumber: 2));
+
+        IngestionChunk chunk = Assert.Single(await CreateChunker(generator).ProcessAsync(document).ToListAsync());
+
+        ChunkerTestAssertions.Equal(chunk, document, "A single semantic paragraph.", string.Empty, ["paragraph"], [2], _tokenizer);
+        Assert.Equal(["A single semantic paragraph."], generator.Inputs);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_TopicChangeSplitsAtExpectedPercentileBoundary()
+    {
+        using RecordingEmbeddingGenerator generator = new(
+            [
+                [1f, 0f],
+                [1f, 0f],
+                [-1f, 0f],
+                [-1f, 0f],
+            ]);
+        IngestionDocument document = TestDocuments.Create(
+            "topics",
+            TestDocuments.Text("dotnet-1", ".NET builds applications.", pageNumber: 1),
+            TestDocuments.Text("dotnet-2", "C# runs on .NET.", pageNumber: 2),
+            TestDocuments.Text("greece-1", "Zeus rules Olympus.", pageNumber: 3),
+            TestDocuments.Text("greece-2", "Athena values wisdom.", pageNumber: 4));
+
+        IReadOnlyList<IngestionChunk> chunks = await CreateChunker(generator).ProcessAsync(document).ToListAsync();
+
+        Assert.Equal(2, chunks.Count);
+        ChunkerTestAssertions.Equal(chunks[0], document, ".NET builds applications.\nC# runs on .NET.", string.Empty, ["dotnet-1", "dotnet-2"], [1, 2], _tokenizer);
+        ChunkerTestAssertions.Equal(chunks[1], document, "Zeus rules Olympus.\nAthena values wisdom.", string.Empty, ["greece-1", "greece-2"], [3, 4], _tokenizer);
+        Assert.Equal([".NET builds applications.", "C# runs on .NET.", "Zeus rules Olympus.", "Athena values wisdom."], generator.Inputs);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_MixedTextAndTableGroupsBySemanticTopic()
+    {
+        using RecordingEmbeddingGenerator generator = new(
+            [
+                [1f, 0f],
+                [1f, 0f],
+                [1f, 0f],
+                [-1f, 0f],
+            ]);
+        DocumentTable table = new(
+            new("table"),
+            1,
+            2,
+            [
+                Cell("language-cell", 0, 0, "language", "C#", 2),
+                Cell("status-cell", 0, 1, "status", "Primary", 2),
+            ]);
+        IngestionDocument document = TestDocuments.Create(
+            "mixed",
+            TestDocuments.Text("intro", ".NET languages:", pageNumber: 1),
+            table,
+            TestDocuments.Text("summary", "C# is the primary language.", pageNumber: 3),
+            TestDocuments.Text("other", "Zeus rules Olympus.", pageNumber: 4));
+
+        IReadOnlyList<IngestionChunk> chunks = await CreateChunker(generator).ProcessAsync(document).ToListAsync();
+
+        Assert.Equal(2, chunks.Count);
+        ChunkerTestAssertions.Equal(
+            chunks[0],
+            document,
+            ".NET languages:\nC#\tPrimary\nC# is the primary language.",
+            string.Empty,
+            ["intro", "table", "language-cell", "language", "status-cell", "status", "summary"],
+            [1, 2, 3],
+            _tokenizer);
+        ChunkerTestAssertions.Equal(chunks[1], document, "Zeus rules Olympus.", string.Empty, ["other"], [4], _tokenizer);
+        Assert.Equal([".NET languages:", "C#\tPrimary", "C# is the primary language.", "Zeus rules Olympus."], generator.Inputs);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_EmbeddingInputsPreserveProjectionOrder()
+    {
+        using RecordingEmbeddingGenerator generator = new(
+            [
+                [1f, 0f],
+                [1f, 0f],
+                [1f, 0f],
+            ]);
+        IngestionDocument document = TestDocuments.Create(
+            "ordered",
+            TestDocuments.Text("first", "first", pageNumber: 3),
+            TestDocuments.Text("second", "second", pageNumber: 1),
+            TestDocuments.Text("third", "third", pageNumber: 2));
+
+        IngestionChunk chunk = Assert.Single(await CreateChunker(generator).ProcessAsync(document).ToListAsync());
+
+        ChunkerTestAssertions.Equal(chunk, document, "first\nsecond\nthird", string.Empty, ["first", "second", "third"], [1, 2, 3], _tokenizer);
+        Assert.Equal(["first", "second", "third"], generator.Inputs);
+        Assert.Equal(1, generator.CallCount);
+        Assert.Null(generator.Options);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_EmbeddingCountMismatchThrowsDeterministically()
+    {
+        using RecordingEmbeddingGenerator generator = new([[1f, 0f]]);
+        IngestionDocument document = TestDocuments.Create(
+            "mismatch",
+            TestDocuments.Text("first", "first"),
+            TestDocuments.Text("second", "second"));
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await CreateChunker(generator).ProcessAsync(document).ToListAsync());
+
+        Assert.Equal("The number of embeddings returned does not match the number of document elements.", exception.Message);
+        Assert.Equal(["first", "second"], generator.Inputs);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ForwardsCancellationToEmbeddingGenerator()
+    {
+        using CancellationTokenSource cancellationSource = new();
+        cancellationSource.Cancel();
+        using RecordingEmbeddingGenerator generator = new([[1f, 0f]]) { ThrowOnCancellation = true };
+        IngestionDocument document = TestDocuments.Create(
+            "canceled",
+            TestDocuments.Text("paragraph", "content", pageNumber: 1));
+
+        OperationCanceledException exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await CreateChunker(generator).ProcessAsync(document, cancellationSource.Token).ToListAsync());
+
+        Assert.Equal(cancellationSource.Token, exception.CancellationToken);
+        Assert.Equal(cancellationSource.Token, generator.CancellationToken);
+        Assert.Equal(["content"], generator.Inputs);
+        Assert.Equal(1, generator.CallCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_EveryChunkHasNonGenericAIContentAndExactPositiveTokenCount()
+    {
+        using RecordingEmbeddingGenerator generator = new(
+            [
+                [1f, 0f],
+                [1f, 0f],
+            ]);
+        IngestionDocument document = TestDocuments.Create(
+            "counts",
+            TestDocuments.Text("first", "alpha", pageNumber: 1),
+            TestDocuments.Text("second", "beta", pageNumber: 2));
+
+        IngestionChunk chunk = Assert.Single(await CreateChunker(generator).ProcessAsync(document).ToListAsync());
+
+        ChunkerTestAssertions.Equal(chunk, document, "alpha\nbeta", string.Empty, ["first", "second"], [1, 2], _tokenizer);
+        Assert.IsAssignableFrom<AIContent>(chunk.Content);
+        Assert.Equal(1, generator.CallCount);
+    }
+
+    private static SemanticSimilarityChunker CreateChunker(RecordingEmbeddingGenerator generator) =>
+        new(generator, new(_tokenizer) { MaxTokensPerChunk = 100 }, thresholdPercentile: 50);
+
+    private static DocumentTableCell Cell(
+        string cellId,
+        int row,
+        int column,
+        string textId,
+        string text,
+        int pageNumber) =>
+        new(
+            new(cellId),
+            row,
+            column,
+            [TestDocuments.Text(textId, text, pageNumber: pageNumber)],
+            pageReferences: [new(pageNumber)]);
+
+    private sealed class RecordingEmbeddingGenerator : IEmbeddingGenerator<TextContent, Embedding<float>>
+    {
+        private readonly IReadOnlyList<float[]> _vectors;
+
+        internal RecordingEmbeddingGenerator(IReadOnlyList<float[]> vectors)
         {
-#pragma warning disable CA2000 // Dispose objects before losing scope
-            TestEmbeddingGenerator<TextContent> embeddingClient = new();
-#pragma warning restore CA2000 // Dispose objects before losing scope
-            return CreateSemanticSimilarityChunker(embeddingClient, maxTokensPerChunk, overlapTokens);
+            _vectors = vectors;
         }
 
-        private static IngestionChunker CreateSemanticSimilarityChunker(IEmbeddingGenerator<TextContent, Embedding<float>> embeddingClient, int maxTokensPerChunk = 2_000, int overlapTokens = 500)
+        internal List<string> Inputs { get; } = [];
+
+        internal int CallCount { get; private set; }
+
+        internal EmbeddingGenerationOptions? Options { get; private set; }
+
+        internal CancellationToken CancellationToken { get; private set; }
+
+        internal bool ThrowOnCancellation { get; set; }
+
+        public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
+            IEnumerable<TextContent> values,
+            EmbeddingGenerationOptions? options = null,
+            CancellationToken cancellationToken = default)
         {
-            Tokenizer tokenizer = TiktokenTokenizer.CreateForModel("gpt-4o");
-            return new SemanticSimilarityChunker(embeddingClient,
-                new(tokenizer) { MaxTokensPerChunk = maxTokensPerChunk, OverlapTokens = overlapTokens });
-        }
-
-        [Fact]
-        public async Task SingleParagraph()
-        {
-            string text = ".NET is a free, cross-platform, open-source developer platform for building many " +
-                "kinds of applications. It can run programs written in multiple languages, with C# being the most popular. " +
-                "It relies on a high-performance runtime that is used in production by many high-scale apps.";
-            IngestionDocument doc = new IngestionDocument("doc");
-            doc.Sections.Add(new IngestionDocumentSection
+            CallCount++;
+            Inputs.AddRange(values.Select(static value => value.Text));
+            Options = options;
+            CancellationToken = cancellationToken;
+            if (ThrowOnCancellation)
             {
-                Elements =
-                {
-                    new IngestionDocumentParagraph(text)
-                }
-            });
-            using TestEmbeddingGenerator<TextContent, Embedding<float>> customGenerator = new()
-            {
-                GenerateAsyncCallback = static async (values, options, ct) =>
-                {
-                    var embeddings = values.Select(v =>
-                        new Embedding<float>(new float[] { 1.0f, 2.0f, 3.0f, 4.0f }))
-                        .ToArray();
-
-                    return [.. embeddings];
-                }
-            };
-            IngestionChunker chunker = CreateSemanticSimilarityChunker(customGenerator);
-            IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(doc).ToListAsync();
-            Assert.Single(chunks);
-            Assert.Equal(text, GetText(chunks[0]));
-        }
-
-        [Fact]
-        public async Task TwoTopicsParagraphs()
-        {
-            IngestionDocument doc = new IngestionDocument("doc");
-            string text1 = ".NET is a free, cross-platform, open-source developer platform for building many" +
-                "kinds of applications. It can run programs written in multiple languages, with C# being the most popular.";
-            string text2 = "It relies on a high-performance runtime that is used in production by many high-scale apps.";
-            string text3 = "Zeus is the chief deity of the Greek pantheon. He is a sky and thunder god in ancient Greek religion and mythology.";
-            doc.Sections.Add(new IngestionDocumentSection
-            {
-                Elements =
-                {
-                    new IngestionDocumentParagraph(text1),
-                    new IngestionDocumentParagraph(text2),
-                    new IngestionDocumentParagraph(text3)
-                }
-            });
-
-            using TestEmbeddingGenerator<TextContent, Embedding<float>> customGenerator = new()
-            {
-                GenerateAsyncCallback = async (values, options, ct) =>
-                {
-                    var embeddings = values.Select((_, index) =>
-                    {
-                        return index switch
-                        {
-                            0 => new Embedding<float>(new float[] { 1.0f, 1.0f, 1.0f, 1.0f }),
-                            1 => new Embedding<float>(new float[] { 1.0f, 1.0f, 1.0f, 1.0f }),
-                            2 => new Embedding<float>(new float[] { -1.0f, -1.0f, -1.0f, -1.0f }),
-                            _ => throw new InvalidOperationException("Unexpected call count")
-                        };
-                    }).ToArray();
-
-                    return [.. embeddings];
-                }
-            };
-
-            IngestionChunker chunker = CreateSemanticSimilarityChunker(customGenerator);
-            IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(doc).ToListAsync();
-            Assert.Equal(2, chunks.Count);
-            Assert.Equal(text1 + Environment.NewLine + text2, GetText(chunks[0]));
-            Assert.Equal(text3, GetText(chunks[1]));
-        }
-
-        [Fact]
-        public async Task TwoSeparateTopicsWithAllKindsOfElements()
-        {
-            string dotNetTableMarkdown = """
-            | Language | Type | Status |
-            | --- | --- | --- |
-            | C# | Object-oriented | Primary |
-            | F# | Functional | Official |
-            | Visual Basic | Object-oriented | Official |
-            | PowerShell | Scripting | Supported |
-            | IronPython | Dynamic | Community |
-            | IronRuby | Dynamic | Community |
-            | Boo | Object-oriented | Community |
-            | Nemerle | Functional/OOP | Community |
-            """;
-
-            string godsTableMarkdown = """
-            | God | Domain | Symbol | Roman Name |
-            | --- | --- | --- | --- |
-            | Zeus | Sky & Thunder | Lightning Bolt | Jupiter |
-            | Hera | Marriage & Family | Peacock | Juno |
-            | Poseidon | Sea & Earthquakes | Trident | Neptune |
-            | Athena | Wisdom & War | Owl | Minerva |
-            | Apollo | Sun & Music | Lyre | Apollo |
-            | Artemis | Hunt & Moon | Silver Bow | Diana |
-            | Aphrodite | Love & Beauty | Dove | Venus |
-            | Ares | War & Courage | Spear | Mars |
-            | Hephaestus | Fire & Forge | Hammer | Vulcan |
-            | Demeter | Harvest & Nature | Wheat | Ceres |
-            | Dionysus | Wine & Festivity | Grapes | Bacchus |
-            | Hermes | Messages & Trade | Caduceus | Mercury |
-            """;
-
-            IngestionDocument doc = new("dotnet-languages");
-            doc.Sections.Add(new IngestionDocumentSection
-            {
-                Elements =
-                {
-                    new IngestionDocumentHeader("# .NET Supported Languages") { Level = 1 },
-                    new IngestionDocumentParagraph("The .NET platform supports multiple programming languages:"),
-                    new IngestionDocumentTable(dotNetTableMarkdown,
-                        ToParagraphCells(CreateLanguageTableCells())),
-                    new IngestionDocumentParagraph("C# remains the most popular language for .NET development."),
-                    new IngestionDocumentHeader("# Ancient Greek Olympian Gods") { Level = 1 },
-                    new IngestionDocumentParagraph("The twelve Olympian gods were the principal deities of the Greek pantheon:"),
-                    new IngestionDocumentTable(godsTableMarkdown,
-                        ToParagraphCells(CreateGreekGodsTableCells())),
-                    new IngestionDocumentParagraph("These gods resided on Mount Olympus and ruled over different aspects of mortal and divine life.")
-                }
-            });
-
-            using TestEmbeddingGenerator<TextContent, Embedding<float>> customGenerator = new()
-            {
-                GenerateAsyncCallback = async (values, options, ct) =>
-                {
-                    var embeddings = values.Select((_, index) =>
-                    {
-                        return index switch
-                        {
-                            <= 3 => new Embedding<float>(new float[] { 1.0f, 1.0f, 1.0f, 1.0f }),
-                            >= 4 and <= 7 => new Embedding<float>(new float[] { -1.0f, -1.0f, -1.0f, -1.0f }),
-                            _ => throw new InvalidOperationException($"Unexpected index: {index}")
-                        };
-                    }).ToArray();
-
-                    return [.. embeddings];
-                }
-            };
-
-            IngestionChunker chunker = CreateSemanticSimilarityChunker(customGenerator, 200, 0);
-            IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(doc).ToListAsync();
-
-            Assert.Equal(3, chunks.Count);
-            Assert.All(chunks, chunk => Assert.Same(doc, chunk.Document));
-            Assert.Equal($@"# .NET Supported Languages
-The .NET platform supports multiple programming languages:
-{dotNetTableMarkdown}
-C# remains the most popular language for .NET development.",
-            GetText(chunks[0]), ignoreLineEndingDifferences: true);
-            Assert.Equal($@"# Ancient Greek Olympian Gods
-The twelve Olympian gods were the principal deities of the Greek pantheon:
-| God | Domain | Symbol | Roman Name |
-| --- | --- | --- | --- |
-| Zeus | Sky & Thunder | Lightning Bolt | Jupiter |
-| Hera | Marriage & Family | Peacock | Juno |
-| Poseidon | Sea & Earthquakes | Trident | Neptune |
-| Athena | Wisdom & War | Owl | Minerva |
-| Apollo | Sun & Music | Lyre | Apollo |
-| Artemis | Hunt & Moon | Silver Bow | Diana |
-| Aphrodite | Love & Beauty | Dove | Venus |
-| Ares | War & Courage | Spear | Mars |
-| Hephaestus | Fire & Forge | Hammer | Vulcan |
-| Demeter | Harvest & Nature | Wheat | Ceres |
-| Dionysus | Wine & Festivity | Grapes | Bacchus |",
-            GetText(chunks[1]), ignoreLineEndingDifferences: true);
-            Assert.Equal("""
-            | God | Domain | Symbol | Roman Name |
-            | --- | --- | --- | --- |
-            | Hermes | Messages & Trade | Caduceus | Mercury |
-            These gods resided on Mount Olympus and ruled over different aspects of mortal and divine life.
-            """, GetText(chunks[2]), ignoreLineEndingDifferences: true);
-
-            static string[,] CreateGreekGodsTableCells() => new string[,]
-                {
-                    { "God", "Domain", "Symbol", "Roman Name" },
-                    { "Zeus", "Sky & Thunder", "Lightning Bolt", "Jupiter" },
-                    { "Hera", "Marriage & Family", "Peacock", "Juno" },
-                    { "Poseidon", "Sea & Earthquakes", "Trident", "Neptune" },
-                    { "Athena", "Wisdom & War", "Owl", "Minerva" },
-                    { "Apollo", "Sun & Music", "Lyre", "Apollo" },
-                    { "Artemis", "Hunt & Moon", "Silver Bow", "Diana" },
-                    { "Aphrodite", "Love & Beauty", "Dove", "Venus" },
-                    { "Ares", "War & Courage", "Spear", "Mars" },
-                    { "Hephaestus", "Fire & Forge", "Hammer", "Vulcan" },
-                    { "Demeter", "Harvest & Nature", "Wheat", "Ceres" },
-                    { "Dionysus", "Wine & Festivity", "Grapes", "Bacchus" },
-                    { "Hermes", "Messages & Trade", "Caduceus", "Mercury" }
-                };
-
-            static string[,] CreateLanguageTableCells() => new string[,]
-                {
-                    { "Language", "Type", "Status" },
-                    { "C#", "Object-oriented", "Primary" },
-                    { "F#", "Functional", "Official" },
-                    { "Visual Basic", "Object-oriented", "Official" },
-                    { "PowerShell", "Scripting", "Supported" },
-                    { "IronPython", "Dynamic", "Community" },
-                    { "IronRuby", "Dynamic", "Community" },
-                    { "Boo", "Object-oriented", "Community" },
-                    { "Nemerle", "Functional/OOP", "Community" }
-                };
-        }
-
-        private static IngestionDocumentParagraph?[,] ToParagraphCells(string[,] cells)
-        {
-            int rows = cells.GetLength(0);
-            int cols = cells.GetLength(1);
-            var result = new IngestionDocumentParagraph?[rows, cols];
-            for (int i = 0; i < rows; i++)
-            {
-                for (int j = 0; j < cols; j++)
-                {
-                    result[i, j] = new IngestionDocumentParagraph(cells[i, j]);
-                }
+                cancellationToken.ThrowIfCancellationRequested();
             }
 
-            return result;
+            return Task.FromResult(
+                new GeneratedEmbeddings<Embedding<float>>(
+                    _vectors.Select(static vector => new Embedding<float>(vector))));
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceKey is null && serviceType.IsInstanceOfType(this) ? this : null;
+
+        public void Dispose()
+        {
         }
     }
 }

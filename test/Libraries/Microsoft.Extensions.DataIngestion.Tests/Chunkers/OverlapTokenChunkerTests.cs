@@ -1,62 +1,47 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.ML.Tokenizers;
 using Xunit;
 
-namespace Microsoft.Extensions.DataIngestion.Chunkers.Tests
+namespace Microsoft.Extensions.DataIngestion.Chunkers.Tests;
+
+public class OverlapTokenChunkerTests : DocumentTokenChunkerTests
 {
-    public class OverlapTokenChunkerTests : DocumentTokenChunkerTests
+    [Fact]
+    public async Task ProcessAsync_Overlap_RepeatsConfiguredBoundaryTokens()
     {
-        protected override IngestionChunker CreateDocumentChunker(int maxTokensPerChunk = 2_000, int overlapTokens = 500)
-        {
-            var tokenizer = TiktokenTokenizer.CreateForModel("gpt-4o");
-            return new DocumentTokenChunker(new(tokenizer) { MaxTokensPerChunk = maxTokensPerChunk, OverlapTokens = overlapTokens });
-        }
+        IngestionDocument document = TestDocuments.Create(
+            "overlap",
+            TestDocuments.Text("paragraph", "The quick brown fox jumps over the lazy dog", pageNumber: 6));
 
-        [Fact]
-        public async Task TokenChunking_WithOverlap()
-        {
-            string text = "The quick brown fox jumps over the lazy dog";
-            var tokenizer = TiktokenTokenizer.CreateForModel("gpt-4o");
-            int chunkSize = 4;  // Small chunk size to demonstrate overlap
-            int chunkOverlap = 1;
+        IReadOnlyList<IngestionChunk> chunks = await CreateDocumentChunker(maxTokensPerChunk: 4, overlapTokens: 1)
+            .ProcessAsync(document)
+            .ToListAsync();
 
-            var chunker = new DocumentTokenChunker(new(tokenizer) { MaxTokensPerChunk = chunkSize, OverlapTokens = chunkOverlap });
-            IngestionDocument doc = new IngestionDocument("overlapExample");
-            doc.Sections.Add(new IngestionDocumentSection
-            {
-                Elements =
-                {
-                    new IngestionDocumentParagraph(text)
-                }
-            });
+        Assert.Equal(3, chunks.Count);
+        ChunkerTestAssertions.Equal(chunks[0], document, "The quick brown fox", string.Empty, ["paragraph"], [6], Tokenizer);
+        ChunkerTestAssertions.Equal(chunks[1], document, " fox jumps over the", string.Empty, ["paragraph"], [6], Tokenizer);
+        ChunkerTestAssertions.Equal(chunks[2], document, " the lazy dog", string.Empty, ["paragraph"], [6], Tokenizer);
+        Assert.EndsWith(" fox", GetText(chunks[0]));
+        Assert.StartsWith(" fox", GetText(chunks[1]));
+        Assert.EndsWith(" the", GetText(chunks[1]));
+        Assert.StartsWith(" the", GetText(chunks[2]));
+    }
 
-            IReadOnlyList<IngestionChunk> chunks = await chunker.ProcessAsync(doc).ToListAsync();
-            Assert.Equal(3, chunks.Count);
-            Assert.Equal("The quick brown fox", GetText(chunks[0]), ignoreLineEndingDifferences: true);
-            Assert.Equal(" fox jumps over the", GetText(chunks[1]), ignoreLineEndingDifferences: true);
-            Assert.Equal(" the lazy dog", GetText(chunks[2]), ignoreLineEndingDifferences: true);
+    [Fact]
+    public async Task ProcessAsync_Overlap_DoesNotEmitOverlapOnlyTerminalChunk()
+    {
+        IngestionDocument document = TestDocuments.Create(
+            "terminal-overlap",
+            TestDocuments.Text("paragraph", "hello world", pageNumber: 9));
 
-            Assert.True(tokenizer.CountTokens(GetText(chunks.Last())) <= chunkSize);
+        IngestionChunk chunk = Assert.Single(
+            await CreateDocumentChunker(maxTokensPerChunk: 2, overlapTokens: 1).ProcessAsync(document).ToListAsync());
 
-            for (int i = 0; i < chunks.Count - 1; i++)
-            {
-                var currentChunk = chunks[i];
-                var nextChunk = chunks[i + 1];
-
-                var currentWords = GetText(currentChunk).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                var nextWords = GetText(nextChunk).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-                bool hasOverlap = currentWords.Intersect(nextWords).Any();
-                Assert.True(hasOverlap, $"Chunks {i} and {i + 1} should have overlapping content");
-            }
-
-            Assert.NotEmpty(string.Concat(chunks.Select(c => GetText(c))));
-        }
+        ChunkerTestAssertions.Equal(chunk, document, "hello world", string.Empty, ["paragraph"], [9], Tokenizer);
+        Assert.DoesNotContain("worldworld", GetText(chunk));
     }
 }
